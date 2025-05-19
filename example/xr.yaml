@@ -1,0 +1,8 @@
+apiVersion: example.org/v1alpha1
+kind: XCluster
+metadata:
+  name: example-xr
+spec:
+  namespace: composition-cluster
+  clustername: test-cluster
+
