@@ -2,17 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	k8sresource "k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
+	objectv1alpha2 "github.com/crossplane-contrib/provider-kubernetes/apis/object/v1alpha2"
+	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/function-sdk-go/errors"
 	"github.com/crossplane/function-sdk-go/logging"
 	fnv1 "github.com/crossplane/function-sdk-go/proto/v1"
@@ -20,6 +13,15 @@ import (
 	"github.com/crossplane/function-sdk-go/resource"
 	"github.com/crossplane/function-sdk-go/resource/composed"
 	"github.com/crossplane/function-sdk-go/response"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	meta "k8s.io/apimachinery/pkg/api/meta"
+	k8sresource "k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // Function implements the FunctionRunnerServiceServer.
@@ -28,9 +30,159 @@ type Function struct {
 	log logging.Logger
 }
 
+// Struct Provider Config
+type ProviderConfig struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata"`
+
+	Spec ProviderConfigSpec `json:"spec"`
+}
+type ProviderConfigSpec struct {
+	Credentials ProviderConfigSpecCredentials `json:"credentials"`
+}
+type ProviderConfigSpecCredentials struct {
+	Source    string          `json:"source"`
+	SecretRef SecretReference `json:"secretRef"`
+}
+type SecretReference struct {
+	Key       string `json:"key"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
+// Object struktur
+type Object struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec ObjectSpec `json:"spec"`
+	//Status ObjectStatus `json:"status,omitempty"`
+}
+type ObjectSpec struct {
+	xpv1.ResourceSpec `json:",inline"`
+
+	ConnectionDetails []ConnectionDetail `json:"connectionDetails,omitempty"`
+	ForProvider       ObjectParameters   `json:"forProvider"`
+	//References        []Reference        `json:"references,omitempty"`
+	//Readiness         Readiness          `json:"readiness,omitempty"`
+
+	//Watch bool `json:"watch,omitempty"`
+}
+type ConnectionDetail struct {
+	corev1.ObjectReference `json:",inline"`
+	ToConnectionSecretKey  string `json:"toConnectionSecretKey,omitempty"`
+}
+type ObjectParameters struct {
+	// Raw JSON representation of the kubernetes object to be created.
+	// +kubebuilder:validation:EmbeddedResource
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Manifest runtime.RawExtension `json:"manifest"`
+}
+type Reference struct {
+	// DependsOn is used to declare dependency on other Object or arbitrary
+	// Kubernetes resource.
+	// +optional
+	*DependsOn `json:"dependsOn,omitempty"`
+	// PatchesFrom is used to declare dependency on other Object or arbitrary
+	// Kubernetes resource, and also patch fields from this object.
+	// +optional
+	*PatchesFrom `json:"patchesFrom,omitempty"`
+	// ToFieldPath is the path of the field on the resource whose value will
+	// be changed with the result of transforms. Leave empty if you'd like to
+	// propagate to the same path as patchesFrom.fieldPath.
+	// +optional
+	ToFieldPath *string `json:"toFieldPath,omitempty"`
+}
+type DependsOn struct {
+	// APIVersion of the referenced object.
+	// +kubebuilder:default=kubernetes.crossplane.io/v1alpha1
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+	// Kind of the referenced object.
+	// +kubebuilder:default=Object
+	// +optional
+	Kind string `json:"kind,omitempty"`
+	// Name of the referenced object.
+	Name string `json:"name"`
+	// Namespace of the referenced object.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+type PatchesFrom struct {
+	DependsOn `json:",inline"`
+	// FieldPath is the path of the field on the resource whose value is to be
+	// used as input.
+	FieldPath *string `json:"fieldPath"`
+}
+
+func createObject(obj runtime.Object, namespace, clustername, providername string) (*resource.DesiredComposed, error) {
+	if obj == nil {
+		return nil, fmt.Errorf("runtime.Object input is nil")
+	}
+	accessor, err := meta.Accessor(obj)
+	if err != nil {
+		return nil, err
+	}
+	uname := accessor.GetName()
+	ukind := obj.GetObjectKind().GroupVersionKind().Kind
+	objekt := &objectv1alpha2.Object{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Object",
+			APIVersion: "kubernetes.crossplane.io/v1alpha2",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      uname,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"app":     "vcluster-" + clustername,
+				"release": clustername,
+			},
+		},
+		Spec: objectv1alpha2.ObjectSpec{
+			ResourceSpec: xpv1.ResourceSpec{
+				ProviderConfigReference: &xpv1.Reference{
+					Name: providername,
+				},
+			},
+			ForProvider: objectv1alpha2.ObjectParameters{
+				Manifest: runtime.RawExtension{
+					Object: obj,
+				},
+			},
+		},
+	}
+	if ukind == "StatefulSet" {
+		objekt.Spec.ConnectionDetails = []objectv1alpha2.ConnectionDetail{
+			{
+				ObjectReference: corev1.ObjectReference{
+					Kind:      "Secret",
+					Namespace: namespace,
+					Name:      "vc-" + clustername,
+					FieldPath: "data.config",
+				},
+				ToConnectionSecretKey: "kubeconfig",
+			},
+		}
+		objekt.Spec.ResourceSpec.WriteConnectionSecretToReference = &xpv1.SecretReference{
+			Name:      "kubeconfig-provider-" + clustername,
+			Namespace: namespace,
+		}
+	}
+	o, err := composed.From(objekt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	return &resource.DesiredComposed{
+		Resource: o,
+		Ready:    resource.ReadyTrue,
+	}, nil
+
+}
+
 func init() {
 	//composed.Scheme.AddKnownTypes(schema.GroupVersion{Group: "", Version: "v1"}, &corev1.ServiceAccount{})
 	//composed.Scheme.AddKnownTypes(schema.GroupVersion{Group: "", Version: "v1"}, &corev1.Secret{})
+
 	composed.Scheme.AddKnownTypes(corev1.SchemeGroupVersion, &corev1.ServiceAccount{})
 	composed.Scheme.AddKnownTypes(corev1.SchemeGroupVersion, &corev1.Secret{})
 	composed.Scheme.AddKnownTypes(corev1.SchemeGroupVersion, &corev1.ConfigMap{})
@@ -38,11 +190,11 @@ func init() {
 	composed.Scheme.AddKnownTypes(rbacv1.SchemeGroupVersion, &rbacv1.Role{})
 	composed.Scheme.AddKnownTypes(rbacv1.SchemeGroupVersion, &rbacv1.RoleBinding{})
 	composed.Scheme.AddKnownTypes(appsv1.SchemeGroupVersion, &appsv1.StatefulSet{})
-
+	composed.Scheme.AddKnownTypes(objectv1alpha2.SchemeGroupVersion, &objectv1alpha2.Object{})
 }
 
 // RunFunction ist der Einstiegspunkt für die Crossplane-Funktion.
-func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) (*fnv1.RunFunctionResponse, error) {
+func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest) (*fnv1.RunFunctionResponse, error) {
 	f.log.Info("Running function", "tag", req.GetMeta().GetTag())
 
 	rsp := response.To(req, response.DefaultTTL)
@@ -79,6 +231,10 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 	}
 
 	serviceaccount_vc := &corev1.ServiceAccount{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ServiceAccount",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "vc-" + clustername,
 			Namespace: namespace,
@@ -94,6 +250,10 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 		return rsp, nil
 	}
 	serviceaccount_workload := &corev1.ServiceAccount{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ServiceAccount",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "vc-workload-" + clustername,
 			Namespace: namespace,
@@ -109,6 +269,10 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 		return rsp, nil
 	}
 	secret := &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "vc-config-" + clustername,
 			Namespace: namespace,
@@ -129,6 +293,10 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 	}
 
 	configmap := &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "vc-coredns-" + clustername,
 			Namespace: namespace,
@@ -348,6 +516,10 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 	}
 
 	role := &rbacv1.Role{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Role",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "vc-" + clustername,
 			Namespace: namespace,
@@ -390,6 +562,10 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 		return rsp, nil
 	}
 	rolebinding := &rbacv1.RoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Rolebinding",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "vc-" + clustername,
 			Namespace: namespace,
@@ -418,6 +594,10 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 	}
 
 	service_headless := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clustername + "-headless",
 			Namespace: namespace,
@@ -450,6 +630,10 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 		return rsp, nil
 	}
 	service := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clustername,
 			Namespace: namespace,
@@ -490,6 +674,10 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 	}
 
 	statefulset := &appsv1.StatefulSet{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "StatefulSet",
+			APIVersion: "apps/v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clustername,
 			Namespace: namespace,
@@ -782,12 +970,48 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 			},
 		},
 	}
-
 	desired[resource.Name("statefulset-"+clustername)], err = createObject(statefulset, namespace, clustername, "kubernetes-provider")
 	if err != nil {
 		response.Fatal(rsp, err)
 		return rsp, nil
 	}
+
+	/*
+		providerconfig := &ProviderConfig{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+				Kind:       "ProviderConfig",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "vclusterconfig-" + clustername,
+				Namespace: namespace,
+			},
+			Spec: ProviderConfigSpec{
+				Credentials: ProviderConfigSpecCredentials{
+					Source: "Secret",
+					SecretRef: SecretReference{
+						Namespace: namespace,
+						Name:      "kubeconfig-provider-" + clustername,
+						Key:       "kubeconfig",
+					},
+				},
+			},
+		}
+
+		/*
+
+			'apiVersion': 'kubernetes.crossplane.io/v1alpha1',
+			'kind': 'ProviderConfig',
+			'metadata':{
+			  'name': name + '-kubernetes-provider-vcluster'},
+			'spec':{
+			  'credentials':{
+			    'secretRef':{
+			      'key': 'config',
+			      'name': 'vc-' + name,
+			      'namespace': namespace},
+			    'source': 'Secret' }}
+	*/
 
 	// Übergib die Desired Ressourcen an die Response
 	if err := response.SetDesiredComposedResources(rsp, desired); err != nil {
@@ -797,7 +1021,9 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1.RunFunctionRequest) 
 
 	return rsp, nil
 }
-func createObject(obj client.Object, providerConfig, namespace, name string) (*resource.DesiredComposed, error) {
+
+/*
+func createObject(obj ctrlclient.Object, providerConfig, namespace, name string) (*resource.DesiredComposed, error) {
 	u, err := composed.From(obj)
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot convert object %s to composed object", obj.GetName())
@@ -819,7 +1045,7 @@ func createObject(obj client.Object, providerConfig, namespace, name string) (*r
 	}, nil
 
 }
-
+*/
 // setProviderConfig fügt ein ProviderConfigRef-Feld hinzu
 func setProviderConfig(u *composed.Unstructured, providerName string) error {
 	return unstructured.SetNestedField(u.Object, providerName, "spec", "providerConfigRef", "name")
