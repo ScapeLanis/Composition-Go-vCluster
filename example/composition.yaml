@@ -1,7 +1,7 @@
 apiVersion: apiextensions.crossplane.io/v1
 kind: Composition
 metadata:
-  name: create-vCluster
+  name: create-vcluster
 spec:
   compositeTypeRef:
     apiVersion: example.org/v1alpha1
@@ -10,4 +10,4 @@ spec:
   pipeline:
   - step: create-vCluster
     functionRef:
-      name: vCluster
+      name: vcluster

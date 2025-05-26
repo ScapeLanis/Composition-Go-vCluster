@@ -24,12 +24,9 @@ spec:
               type: object
               required:
                 - namespace
-                - clusterName
+                - clustername
               properties:
                 namespace:
                   type: string
-                clusterName:
+                clustername:
                   type: string
-
-
-
