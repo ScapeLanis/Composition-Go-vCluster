@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 
 	objectv1alpha2 "github.com/crossplane-contrib/provider-kubernetes/apis/object/v1alpha2"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
@@ -14,17 +13,14 @@ import (
 	"github.com/crossplane/function-sdk-go/resource"
 	"github.com/crossplane/function-sdk-go/resource/composed"
 	"github.com/crossplane/function-sdk-go/response"
-	"gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 // Function implements the FunctionRunnerServiceServer.
@@ -166,11 +162,11 @@ func createObject(obj runtime.Object, name, namespace, clustername, providername
 		return nil, fmt.Errorf("runtime.Object input is nil")
 	}
 	/*
-		accessor, err := meta.Accessor(obj)
-		if err != nil {
-			return nil, err
-		}
-		uname := accessor.GetName()
+	   accessor, err := meta.Accessor(obj)
+	   if err != nil {
+	       return nil, err
+	   }
+	   uname := accessor.GetName()
 	*/
 	objekt := &objectv1alpha2.Object{
 		TypeMeta: metav1.TypeMeta{
@@ -198,23 +194,25 @@ func createObject(obj runtime.Object, name, namespace, clustername, providername
 			},
 		},
 	}
-	if statefulset {
-		objekt.Spec.ConnectionDetails = []objectv1alpha2.ConnectionDetail{
-			{
-				ObjectReference: corev1.ObjectReference{
-					Kind:      "Secret",
-					Namespace: namespace,
-					Name:      "vc-" + clustername,
-					FieldPath: "data.config",
-				},
-				ToConnectionSecretKey: "kubeconfig",
-			},
-		}
-		objekt.Spec.ResourceSpec.WriteConnectionSecretToReference = &xpv1.SecretReference{
-			Name:      "kubeconfig-provider-" + clustername,
-			Namespace: namespace,
-		}
-	}
+	/*
+	   if statefulset {
+	       objekt.Spec.ConnectionDetails = []objectv1alpha2.ConnectionDetail{
+	           {
+	               ObjectReference: corev1.ObjectReference{
+	                   Kind:      "Secret",
+	                   Namespace: namespace,
+	                   Name:      "vc-" + clustername,
+	                   FieldPath: "data.config",
+	               },
+	               ToConnectionSecretKey: "kubeconfig",
+	           },
+	       }
+	       objekt.Spec.ResourceSpec.WriteConnectionSecretToReference = &xpv1.SecretReference{
+	           Name:      "kubeconfig-provider-" + clustername,
+	           Namespace: namespace,
+	       }
+	   }
+	*/
 	o, err := composed.From(objekt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
@@ -285,7 +283,7 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 			Name:      "vc-" + clustername,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app":     "vcluster-" + clustername,
+				"app":     "vcluster",
 				"release": clustername,
 			},
 		},
@@ -304,7 +302,7 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 			Name:      "vc-workload-" + clustername,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app":     "vcluster-" + clustername,
+				"app":     "vcluster",
 				"release": clustername,
 			},
 		},
@@ -323,7 +321,7 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 			Name:      "vc-config-" + clustername,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app":     "vcluster-" + clustername,
+				"app":     "vcluster",
 				"release": clustername,
 			},
 		},
@@ -883,210 +881,210 @@ telemetry:
 		},
 		Data: map[string]string{
 			"coredns.yaml": `apiVersion: v1
-    kind: ServiceAccount
-    metadata:
-      name: coredns
-      namespace: kube-system
-    ---
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRole
-    metadata:
-      labels:
-        kubernetes.io/bootstrapping: rbac-defaults
-      name: system:coredns
-    rules:
-      - apiGroups:
-          - ""
-        resources:
-          - endpoints
-          - services
-          - pods
-          - namespaces
-        verbs:
-          - list
-          - watch
-      - apiGroups:
-          - discovery.k8s.io
-        resources:
-          - endpointslices
-        verbs:
-          - list
-          - watch
-    ---
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRoleBinding
-    metadata:
-      annotations:
-        rbac.authorization.kubernetes.io/autoupdate: "true"
-      labels:
-        kubernetes.io/bootstrapping: rbac-defaults
-      name: system:coredns
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: system:coredns
-    subjects:
-      - kind: ServiceAccount
-        name: coredns
-        namespace: kube-system
-    ---
-    apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: coredns
-      namespace: kube-system
-    data:
-      Corefile: |-
-        .:1053 {
-            errors
-            health
-            ready
-            rewrite name regex .*\.nodes\.vcluster\.com kubernetes.default.svc.cluster.local
-            kubernetes cluster.local in-addr.arpa ip6.arpa {
-                pods insecure
-                fallthrough in-addr.arpa ip6.arpa
-            }
-            hosts /etc/NodeHosts {
-                ttl 60
-                reload 15s
-                fallthrough
-            }
-            prometheus :9153
-            forward . /etc/resolv.conf
-            cache 30
-            loop
-            loadbalance
+kind: ServiceAccount
+metadata:
+  name: coredns
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+  name: system:coredns
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - endpoints
+      - services
+      - pods
+      - namespaces
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+  name: system:coredns
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:coredns
+subjects:
+  - kind: ServiceAccount
+    name: coredns
+    namespace: kube-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |-
+    .:1053 {
+        errors
+        health
+        ready
+        rewrite name regex .*\.nodes\.vcluster\.com kubernetes.default.svc.cluster.local
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
         }
-      
-        import /etc/coredns/custom/*.server
-      NodeHosts: ""
-    ---
-    apiVersion: apps/v1
-    kind: Deployment
+        hosts /etc/NodeHosts {
+            ttl 60
+            reload 15s
+            fallthrough
+        }
+        prometheus :9153
+        forward . /etc/resolv.conf
+        cache 30
+        loop
+        loadbalance
+    }
+  
+    import /etc/coredns/custom/*.server
+  NodeHosts: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coredns
+  namespace: kube-system
+  labels:
+    k8s-app: vcluster-kube-dns
+    kubernetes.io/name: "CoreDNS"
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      k8s-app: vcluster-kube-dns
+  template:
     metadata:
-      name: coredns
-      namespace: kube-system
       labels:
         k8s-app: vcluster-kube-dns
-        kubernetes.io/name: "CoreDNS"
     spec:
-      replicas: 1
-      strategy:
-        type: RollingUpdate
-        rollingUpdate:
-          maxUnavailable: 1
-      selector:
-        matchLabels:
-          k8s-app: vcluster-kube-dns
-      template:
-        metadata:
-          labels:
-            k8s-app: vcluster-kube-dns
-        spec:
-          priorityClassName: ""
-          serviceAccountName: coredns
-          nodeSelector:
-            kubernetes.io/os: linux
-          topologySpreadConstraints:
-            - labelSelector:
-                matchLabels:
-                  k8s-app: vcluster-kube-dns
-              maxSkew: 1
-              topologyKey: kubernetes.io/hostname
-              whenUnsatisfiable: DoNotSchedule
-          containers:
-            - name: coredns
-              image: {{.IMAGE}}
-              imagePullPolicy: IfNotPresent
-              resources:
-                limits:
-                  cpu: 1000m
-                  memory: 170Mi
-                requests:
-                  cpu: 20m
-                  memory: 64Mi
-              args: [ "-conf", "/etc/coredns/Corefile" ]
-              volumeMounts:
-                - name: config-volume
-                  mountPath: /etc/coredns
-                  readOnly: true
-                - name: custom-config-volume
-                  mountPath: /etc/coredns/custom
-                  readOnly: true
-              securityContext:
-                runAsNonRoot: true
-                runAsUser: {{.RUN_AS_USER}}
-                runAsGroup: {{.RUN_AS_GROUP}}
-                allowPrivilegeEscalation: false
-                capabilities:
-                  add:
-                    - NET_BIND_SERVICE
-                  drop:
-                    - ALL
-                readOnlyRootFilesystem: true
-              livenessProbe:
-                httpGet:
-                  path: /health
-                  port: 8080
-                  scheme: HTTP
-                initialDelaySeconds: 60
-                periodSeconds: 10
-                timeoutSeconds: 1
-                successThreshold: 1
-                failureThreshold: 3
-              readinessProbe:
-                httpGet:
-                  path: /ready
-                  port: 8181
-                  scheme: HTTP
-                initialDelaySeconds: 0
-                periodSeconds: 2
-                timeoutSeconds: 1
-                successThreshold: 1
-                failureThreshold: 3
-          dnsPolicy: Default
-          volumes:
+      priorityClassName: ""
+      serviceAccountName: coredns
+      nodeSelector:
+        kubernetes.io/os: linux
+      topologySpreadConstraints:
+        - labelSelector:
+            matchLabels:
+              k8s-app: vcluster-kube-dns
+          maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+      containers:
+        - name: coredns
+          image: {{.IMAGE}}
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 170Mi
+            requests:
+              cpu: 20m
+              memory: 64Mi
+          args: [ "-conf", "/etc/coredns/Corefile" ]
+          volumeMounts:
             - name: config-volume
-              configMap:
-                name: coredns
-                items:
-                  - key: Corefile
-                    path: Corefile
-                  - key: NodeHosts
-                    path: NodeHosts
+              mountPath: /etc/coredns
+              readOnly: true
             - name: custom-config-volume
-              configMap:
-                name: coredns-custom
-                optional: true
-    ---
-    apiVersion: v1
-    kind: Service
-    metadata:
-      name: kube-dns
-      namespace: kube-system
-      annotations:
-        prometheus.io/port: "9153"
-        prometheus.io/scrape: "true"
-      labels:
-        k8s-app: vcluster-kube-dns
-        kubernetes.io/cluster-service: "true"
-        kubernetes.io/name: "CoreDNS"
-    spec:
-      type: ClusterIP
-      selector:
-        k8s-app: vcluster-kube-dns
-      ports:
-        - name: dns
-          port: 53
-          targetPort: 1053
-          protocol: UDP
-        - name: dns-tcp
-          port: 53
-          targetPort: 1053
-          protocol: TCP
-        - name: metrics
-          port: 9153
-          protocol: TCP`,
+              mountPath: /etc/coredns/custom
+              readOnly: true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{.RUN_AS_USER}}
+            runAsGroup: {{.RUN_AS_GROUP}}
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+                - NET_BIND_SERVICE
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8181
+              scheme: HTTP
+            initialDelaySeconds: 0
+            periodSeconds: 2
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+      dnsPolicy: Default
+      volumes:
+        - name: config-volume
+          configMap:
+            name: coredns
+            items:
+              - key: Corefile
+                path: Corefile
+              - key: NodeHosts
+                path: NodeHosts
+        - name: custom-config-volume
+          configMap:
+            name: coredns-custom
+            optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-dns
+  namespace: kube-system
+  annotations:
+    prometheus.io/port: "9153"
+    prometheus.io/scrape: "true"
+  labels:
+    k8s-app: vcluster-kube-dns
+    kubernetes.io/cluster-service: "true"
+    kubernetes.io/name: "CoreDNS"
+spec:
+  type: ClusterIP
+  selector:
+    k8s-app: vcluster-kube-dns
+  ports:
+    - name: dns
+      port: 53
+      targetPort: 1053
+      protocol: UDP
+    - name: dns-tcp
+      port: 53
+      targetPort: 1053
+      protocol: TCP
+    - name: metrics
+      port: 9153
+      protocol: TCP`,
 		},
 	}
 	desired[resource.Name("configmap-"+clustername)], err = createObject(configmap, "configmap-", namespace, clustername, "kubernetes-provider", false)
@@ -1104,7 +1102,7 @@ telemetry:
 			Name:      "vc-" + clustername,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app":     "vcluster-" + clustername,
+				"app":     "vcluster",
 				"release": clustername,
 			},
 		},
@@ -1150,7 +1148,7 @@ telemetry:
 			Name:      "vc-" + clustername,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app":     "vcluster-" + clustername,
+				"app":     "vcluster",
 				"release": clustername,
 			},
 		},
@@ -1182,7 +1180,7 @@ telemetry:
 			Name:      clustername + "-headless",
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app":     "vcluster-" + clustername,
+				"app":     "vcluster",
 				"release": clustername,
 			},
 		},
@@ -1199,7 +1197,7 @@ telemetry:
 			PublishNotReadyAddresses: true,
 			ClusterIP:                "None",
 			Selector: map[string]string{
-				"app":     "vcluster-" + clustername,
+				"app":     "vcluster",
 				"release": clustername,
 			},
 		},
@@ -1218,7 +1216,7 @@ telemetry:
 			Name:      clustername,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app":                      "vcluster-" + clustername,
+				"app":                      "vcluster",
 				"release":                  clustername,
 				"vcluster.loft.sh/service": "true",
 			},
@@ -1242,7 +1240,7 @@ telemetry:
 				},
 			},
 			Selector: map[string]string{
-				"app":     "vcluster-" + clustername,
+				"app":     "vcluster",
 				"release": clustername,
 			},
 		},
@@ -1262,7 +1260,7 @@ telemetry:
 			Name:      clustername,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app":     "vcluster" + clustername,
+				"app":     "vcluster",
 				"release": clustername,
 			},
 		},
@@ -1270,7 +1268,7 @@ telemetry:
 			Replicas: int32Ptr(1),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app":     "vcluster-" + clustername,
+					"app":     "vcluster",
 					"release": clustername,
 				},
 			},
@@ -1303,7 +1301,7 @@ telemetry:
 						"vClusterConfigHash": "b1768483e2256a4f33a31821c0a9122b283e532dd7decbd7c361caf4540066ec",
 					},
 					Labels: map[string]string{
-						"app":     "vcluster-" + clustername,
+						"app":     "vcluster",
 						"release": clustername,
 					},
 				},
@@ -1555,69 +1553,72 @@ telemetry:
 		response.Fatal(rsp, err)
 		return rsp, nil
 	}
+	/*
+	   observedResource := req.Observed.Resources["statefulset-"+clustername]
+	   if observedResource != nil {
+	       connectiondetails := observedResource.GetConnectionDetails()
+	       if connectiondetails != nil {
+	           kubeconfig := connectiondetails["kubeconfig"]
 
-	observedResource := req.Observed.Resources["statefulset-"+clustername]
-	if observedResource != nil {
-		connectiondetails := observedResource.GetConnectionDetails()
-		if connectiondetails != nil {
-			kubeconfig := connectiondetails["kubeconfig"]
+	           // In Struct umwandeln
+	           var config clientcmdapi.Config
+	           err := yaml.Unmarshal(kubeconfig, &config)
+	           if err != nil {
+	               log.Fatal("Fehler beim Unmarshal:", err)
+	           }
+	           config.Clusters["kubernetes"].Server = "https://neuer-server:6443"
 
-			// In Struct umwandeln
-			var config clientcmdapi.Config
-			err := yaml.Unmarshal(kubeconfig, &config)
-			if err != nil {
-				log.Fatal("Fehler beim Unmarshal:", err)
-			}
-			config.Clusters["kubernetes"].Server = "https://neuer-server:6443"
+	           println(kubeconfig)
+	           configmapAusgabe := &corev1.ConfigMap{
+	               TypeMeta: metav1.TypeMeta{
+	                   Kind:       "ConfigMap",
+	                   APIVersion: "v1",
+	               },
+	               ObjectMeta: metav1.ObjectMeta{
+	                   Name:      "Ausgabe",
+	                   Namespace: "default",
+	               },
+	               Data: map[string]string{
+	                   "kubeconfig": string(kubeconfig),
+	               },
+	           }
+	           desired[resource.Name("configmapausgabe")], err = createObject(configmapAusgabe, "configmapausgabe-", "default", clustername, "kubernetes-provider", false)
+	           if err != nil {
+	               response.Fatal(rsp, err)
+	               return rsp, nil
+	           }
 
-			println(kubeconfig)
-			configmapAusgabe := &corev1.ConfigMap{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "ConfigMap",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "Ausgabe",
-					Namespace: "default",
-				},
-				Data: map[string]string{
-					"kubeconfig": string(kubeconfig),
-				},
-			}
-			desired[resource.Name("configmapausgabe")], err = createObject(configmapAusgabe, "configmapausgabe-", "default", clustername, "kubernetes-provider", false)
-			if err != nil {
-				response.Fatal(rsp, err)
-				return rsp, nil
-			}
-
-		}
-	}
-
-	providerconfig := &ProviderConfig{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ProviderConfig",
-			APIVersion: "kubernetes.crossplane.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "vclusterconfig-" + clustername,
-			//Namespace: namespace,
-		},
-		Spec: ProviderConfigSpec{
-			Credentials: ProviderConfigSpecCredentials{
-				Source: "Secret",
-				SecretRef: SecretReference{
-					Namespace: namespace,
-					Name:      "kubeconfig-provider-" + clustername,
-					Key:       "kubeconfig",
+	       }
+	   }
+	*/
+	/*
+		providerconfig := &ProviderConfig{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ProviderConfig",
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vclusterconfig-" + clustername,
+				//Namespace: namespace,
+			},
+			Spec: ProviderConfigSpec{
+				Credentials: ProviderConfigSpecCredentials{
+					Source: "Secret",
+					SecretRef: SecretReference{
+						Namespace: namespace,
+						Name:      "kubeconfig-provider-" + clustername,
+						Key:       "kubeconfig",
+					},
 				},
 			},
-		},
-	}
-	u, err := composed.From(providerconfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
-	}
-	desired[resource.Name("providerconfig-"+clustername)] = &resource.DesiredComposed{Resource: u}
+		}
+
+		u, err := composed.From(providerconfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+		}
+		desired[resource.Name("providerconfig-"+clustername)] = &resource.DesiredComposed{Resource: u}
+	*/
 
 	// Übergib die Desired Ressourcen an die Response
 	if err := response.SetDesiredComposedResources(rsp, desired); err != nil {
@@ -1628,11 +1629,15 @@ telemetry:
 	return rsp, nil
 }
 
+/*
 // setProviderConfig fügt ein ProviderConfigRef-Feld hinzu
-func setProviderConfig(u *composed.Unstructured, providerName string) error {
-	return unstructured.SetNestedField(u.Object, providerName, "spec", "providerConfigRef", "name")
-}
 
+    func setProviderConfig(u *composed.Unstructured, providerName string) error {
+        return unstructured.SetNestedField(u.Object, providerName, "spec", "providerConfigRef", "name")
+    }
+*/
+
+// Hilfsfunktionen
 func int32Ptr(i int32) *int32 { return &i }
 func int64Ptr(i int64) *int64 { return &i }
 func boolPtr(b bool) *bool    { return &b }
