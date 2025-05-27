@@ -339,9 +339,6 @@ controlPlane:
     serviceAccount:
       annotations: {}
       enabled: true
-      imagePullSecrets: []
-      labels: {}
-      name: ""
     virtualScheduler:
       enabled: false
     workloadServiceAccount:
@@ -355,37 +352,23 @@ controlPlane:
       embedded:
         enabled: false
       external:
-        caFile: ""
-        certFile: ""
-        connector: ""
-        dataSource: ""
         enabled: false
-        keyFile: ""
     etcd:
       deploy:
         enabled: false
-        headlessService:
-          annotations: {}
         service:
           annotations: {}
           enabled: true
         statefulSet:
-          annotations: {}
           enableServiceLinks: true
           enabled: true
-          env: []
-          extraArgs: []
           highAvailability:
             replicas: 1
           image:
             registry: registry.k8s.io
             repository: etcd
             tag: 3.5.17-0
-          imagePullPolicy: ""
-          labels: {}
           persistence:
-            addVolumeMounts: []
-            addVolumes: []
             volumeClaim:
               accessModes:
               - ReadWriteOnce
@@ -393,37 +376,17 @@ controlPlane:
               retentionPolicy: Retain
               size: 5Gi
               storageClass: ""
-            volumeClaimTemplates: []
-          pods:
-            annotations: {}
-            labels: {}
           resources:
             requests:
               cpu: 20m
               memory: 150Mi
           scheduling:
-            affinity: {}
-            nodeSelector: {}
             podManagementPolicy: Parallel
-            priorityClassName: ""
-            tolerations: []
-            topologySpreadConstraints: []
-          security:
-            containerSecurityContext: {}
-            podSecurityContext: {}
       embedded:
         enabled: false
         migrateFromDeployedEtcd: false
   coredns:
     deployment:
-      affinity: {}
-      annotations: {}
-      image: ""
-      labels: {}
-      nodeSelector: {}
-      pods:
-        annotations: {}
-        labels: {}
       replicas: 1
       resources:
         limits:
@@ -432,7 +395,6 @@ controlPlane:
         requests:
           cpu: 20m
           memory: 64Mi
-      tolerations: []
       topologySpreadConstraints:
       - labelSelector:
           matchLabels:
@@ -442,25 +404,15 @@ controlPlane:
         whenUnsatisfiable: DoNotSchedule
     embedded: false
     enabled: true
-    overwriteConfig: ""
-    overwriteManifests: ""
-    priorityClassName: ""
     service:
-      annotations: {}
-      labels: {}
       spec:
         type: ClusterIP
   distro:
     k0s:
-      command: []
-      config: ""
       enabled: false
-      extraArgs: []
       image:
-        registry: ""
         repository: k0sproject/k0s
         tag: v1.30.2-k0s.0
-      imagePullPolicy: ""
       resources:
         limits:
           cpu: 100m
@@ -468,16 +420,11 @@ controlPlane:
         requests:
           cpu: 40m
           memory: 64Mi
-      securityContext: {}
     k3s:
-      command: []
       enabled: false
-      extraArgs: []
       image:
-        registry: ""
         repository: rancher/k3s
         tag: v1.32.1-k3s1
-      imagePullPolicy: ""
       resources:
         limits:
           cpu: 100m
@@ -488,25 +435,18 @@ controlPlane:
       securityContext: {}
     k8s:
       apiServer:
-        command: []
         enabled: true
-        extraArgs: []
         image:
           registry: registry.k8s.io
           repository: kube-apiserver
           tag: v1.32.1
-        imagePullPolicy: ""
       controllerManager:
-        command: []
         enabled: true
-        extraArgs: []
         image:
           registry: registry.k8s.io
           repository: kube-controller-manager
           tag: v1.32.1
-        imagePullPolicy: ""
       enabled: false
-      env: []
       resources:
         limits:
           cpu: 100m
@@ -515,26 +455,10 @@ controlPlane:
           cpu: 40m
           memory: 64Mi
       scheduler:
-        command: []
-        extraArgs: []
         image:
           registry: registry.k8s.io
           repository: kube-scheduler
           tag: v1.32.1
-        imagePullPolicy: ""
-      securityContext: {}
-      version: ""
-  ingress:
-    annotations:
-      nginx.ingress.kubernetes.io/backend-protocol: HTTPS
-      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    enabled: false
-    host: my-host.com
-    labels: {}
-    pathType: ImplementationSpecific
-    spec:
-      tls: []
   proxy:
     bindAddress: 0.0.0.0
     extraSANs: []
@@ -547,16 +471,8 @@ controlPlane:
     labels: {}
     spec:
       type: ClusterIP
-  serviceMonitor:
-    annotations: {}
-    enabled: false
-    labels: {}
   statefulSet:
-    annotations: {}
-    args: []
-    command: []
     enableServiceLinks: true
-    env: []
     highAvailability:
       leaseDuration: 60
       renewDeadline: 40
@@ -565,27 +481,16 @@ controlPlane:
     image:
       registry: ghcr.io
       repository: loft-sh/vcluster-pro
-      tag: ""
-    imagePullPolicy: ""
-    labels: {}
     persistence:
-      addVolumeMounts: []
-      addVolumes: []
       binariesVolume:
       - emptyDir: {}
         name: binaries
-      dataVolume: []
       volumeClaim:
         accessModes:
         - ReadWriteOnce
         enabled: auto
         retentionPolicy: Retain
         size: 5Gi
-        storageClass: ""
-      volumeClaimTemplates: []
-    pods:
-      annotations: {}
-      labels: {}
     probes:
       livenessProbe:
         enabled: true
@@ -602,8 +507,6 @@ controlPlane:
         ephemeral-storage: 400Mi
         memory: 256Mi
     scheduling:
-      affinity: {}
-      nodeSelector: {}
       podManagementPolicy: Parallel
       priorityClassName: ""
       tolerations: []
@@ -615,90 +518,6 @@ controlPlane:
         runAsUser: 0
       podSecurityContext: {}
     workingDir: ""
-experimental:
-  deploy:
-    host:
-      manifests: ""
-      manifestsTemplate: ""
-    vcluster:
-      helm: []
-      manifests: ""
-      manifestsTemplate: ""
-  genericSync:
-    clusterRole:
-      extraRules: []
-    role:
-      extraRules: []
-  isolatedControlPlane:
-    headless: false
-  multiNamespaceMode:
-    enabled: false
-  reuseNamespace: false
-  syncSettings:
-    disableSync: false
-    rewriteKubernetesService: false
-    setOwner: true
-    targetNamespace: ""
-exportKubeConfig:
-  context: ""
-  insecure: false
-  secret:
-    name: ""
-    namespace: ""
-  server: ""
-  serviceAccount:
-    clusterRole: ""
-    name: ""
-    namespace: ""
-external: {}
-integrations:
-  certManager:
-    enabled: false
-    sync:
-      fromHost:
-        clusterIssuers:
-          enabled: true
-          selector:
-            labels: {}
-      toHost:
-        certificates:
-          enabled: true
-        issuers:
-          enabled: true
-  externalSecrets:
-    enabled: false
-    sync:
-      clusterStores:
-        enabled: false
-        selector:
-          labels: {}
-      externalSecrets:
-        enabled: true
-      stores:
-        enabled: false
-    webhook:
-      enabled: false
-  kubeVirt:
-    enabled: false
-    sync:
-      dataVolumes:
-        enabled: false
-      virtualMachineClones:
-        enabled: true
-      virtualMachineInstanceMigrations:
-        enabled: true
-      virtualMachineInstances:
-        enabled: true
-      virtualMachinePools:
-        enabled: true
-      virtualMachines:
-        enabled: true
-    webhook:
-      enabled: true
-  metricsServer:
-    enabled: false
-    nodes: true
-    pods: true
 networking:
   advanced:
     clusterDomain: cluster.local
@@ -716,7 +535,6 @@ policies:
     mutatingWebhooks: []
     validatingWebhooks: []
   limitRange:
-    annotations: {}
     default:
       cpu: "1"
       ephemeral-storage: 8Gi
@@ -726,14 +544,10 @@ policies:
       ephemeral-storage: 3Gi
       memory: 128Mi
     enabled: auto
-    labels: {}
-    max: {}
-    min: {}
   networkPolicy:
     annotations: {}
     enabled: false
     fallbackDns: 8.8.8.8
-    labels: {}
     outgoingConnections:
       ipBlock:
         cidr: 0.0.0.0/0
