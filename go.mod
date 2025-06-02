@@ -16,6 +16,7 @@ require (
 	k8s.io/apimachinery v0.31.0
 	sigs.k8s.io/controller-tools v0.16.0
 	sigs.k8s.io/yaml v1.4.0
+
 )
 
 require (
