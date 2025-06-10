@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	protectionv1beta1 "github.com/crossplane/crossplane/apis/protection/v1beta1"
+	protectionv1beta1 "github.com/crossplane/crossplane/apis/apiextensions/v1beta1"
 
 	objectv1alpha2 "github.com/crossplane-contrib/provider-kubernetes/apis/object/v1alpha2"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
@@ -97,6 +97,8 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 
 	rsp := response.To(req, response.DefaultTTL)
 
+	ipadresse := "192.168.49.2"
+	nodeport := ":30180"
 	xr, err := request.GetObservedCompositeResource(req)
 	if err != nil {
 		response.ConditionFalse(rsp, "FunctionSuccess", "InternalError").
@@ -173,15 +175,11 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		return rsp, nil
 	}
 
-	//vclusterconfig.ControlPlane.Proxy.ExtraSANs[0] = "192.168.59.100"
 	vclusterconfig.ControlPlane.Proxy.ExtraSANs = append(
 		vclusterconfig.ControlPlane.Proxy.ExtraSANs,
-		"192.168.59.100",
+		ipadresse,
 	)
 
-	//vclusterconfig.ExportKubeConfig.ExportKubeConfigProperties.Server = "builver.de"
-	//	vclusterconfig.ControlPlane.StatefulSet.Scheduling.PodManagementPolicy = "OrderedReady"
-	//	vclusterconfig.ExportKubeConfig.Server = "https://builver.de:443"
 	yamlBytes, err := yaml.Marshal(vclusterconfig)
 	if err != nil {
 		response.Fatal(rsp, err)
@@ -220,7 +218,7 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "coredns",
-			Namespace: namespace,
+			Namespace: "kube-system",
 		},
 	}
 
@@ -269,7 +267,7 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		},
 		Subjects: []rbacv1.Subject{
 			{
-				Kind:      "Serviceaccount",
+				Kind:      "ServiceAccount",
 				Name:      "coredns",
 				Namespace: "kube-system",
 			},
@@ -364,7 +362,7 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 					Containers: []corev1.Container{
 						{
 							Name:            "coredns",
-							Image:           "coredns:latest",
+							Image:           "registry.k8s.io/coredns/coredns:v1.12.0",
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Resources: corev1.ResourceRequirements{
 								Limits: corev1.ResourceList{
@@ -439,6 +437,9 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 							Name: "config-volume",
 							VolumeSource: corev1.VolumeSource{
 								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "coredns",
+									},
 									Items: []corev1.KeyToPath{
 										{
 											Key:  "Corefile",
@@ -456,6 +457,9 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 							Name: "custom-config-volume",
 							VolumeSource: corev1.VolumeSource{
 								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "coredns-custom",
+									},
 									Optional: boolPtr(true),
 								},
 							},
@@ -1138,7 +1142,7 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 				response.Fatal(rsp, fmt.Errorf("cluster 'kubernetes' not found in kubeconfig"))
 				return rsp, nil
 			}
-			kubeconfig.Clusters["kubernetes"].Server = "https://192.168.59.100:30180"
+			kubeconfig.Clusters["kubernetes"].Server = ipadresse + nodeport
 			configbytechanged, err := clientcmd.Write(*kubeconfig)
 			if err != nil {
 				response.Fatal(rsp, errors.New("Write kubeconfig fehler"))
@@ -1172,15 +1176,20 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		}
 
 	}
+
 	usage := &protectionv1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "usage-" + clustername,
 		},
 		Spec: protectionv1beta1.UsageSpec{
-			Of: protectionv1beta1.NamespacedResource{
+			Of: protectionv1beta1.Resource{
 				APIVersion: "apps/v1",
 				Kind:       "StatefulSet",
-				ResourceSelector: &protectionv1beta1.NamespacedResourceSelector{
+				ResourceSelector: &protectionv1beta1.ResourceSelector{
 					MatchLabels: map[string]string{
 						"app":     "vcluster",
 						"release": clustername,
@@ -1199,7 +1208,8 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 					MatchControllerRef: boolPtr(false),
 				},
 			},
-			Reason: strPtr("Ressource im Clutser noch vorhanden"),
+			Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+			ReplayDeletion: boolPtr(true),
 		},
 	}
 
@@ -1211,46 +1221,51 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		Resource: a,
 		Ready:    resource.ReadyTrue,
 	}
-
-	usageprovider := &protectionv1beta1.Usage{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "usage-provider-" + clustername,
-		},
-		Spec: protectionv1beta1.UsageSpec{
-			Of: protectionv1beta1.NamespacedResource{
-				APIVersion: "kubernetes.crossplane.io/v1alpha1",
-				Kind:       "ProviderConfig",
-				ResourceSelector: &protectionv1beta1.NamespacedResourceSelector{
-					MatchLabels: map[string]string{
-						"app":                 "vcluster",
-						"release":             clustername,
-						"providerforvcluster": "true",
+	/*
+		usageprovider := &protectionv1beta1.Usage{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Usage",
+				APIVersion: "apiextensions.crossplane.io/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "usage-provider-" + clustername,
+			},
+			Spec: protectionv1beta1.UsageSpec{
+				Of: protectionv1beta1.Resource{
+					APIVersion: "kubernetes.crossplane.io/v1alpha1",
+					Kind:       "ProviderConfig",
+					ResourceSelector: &protectionv1beta1.ResourceSelector{
+						MatchLabels: map[string]string{
+							"app":                 "vcluster",
+							"release":             clustername,
+							"providerforvcluster": "true",
+						},
 					},
 				},
-			},
-			By: &protectionv1beta1.Resource{
-				Kind:       "Pod",
-				APIVersion: "v1",
-				ResourceSelector: &protectionv1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"invcluster": "true",
+				By: &protectionv1beta1.Resource{
+					Kind:       "Pod",
+					APIVersion: "v1",
+					ResourceSelector: &protectionv1beta1.ResourceSelector{
+						MatchLabels: map[string]string{
+							"invcluster": "true",
+						},
+						MatchControllerRef: boolPtr(false),
 					},
-					MatchControllerRef: boolPtr(false),
 				},
+				Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+				ReplayDeletion: boolPtr(true),
 			},
-			Reason: strPtr("Ressource im Clutser noch vorhanden"),
-		},
-	}
+		}
 
-	b, err := composed.From(usageprovider)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
-	}
-	desired[resource.Name("usage-provider-"+clustername)] = &resource.DesiredComposed{
-		Resource: b,
-		Ready:    resource.ReadyTrue,
-	}
-
+		b, err := composed.From(usageprovider)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+		}
+		desired[resource.Name("usage-provider-"+clustername)] = &resource.DesiredComposed{
+			Resource: b,
+			Ready:    resource.ReadyTrue,
+		}
+	*/
 	testpodzwei := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
