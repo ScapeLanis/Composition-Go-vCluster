@@ -2,6 +2,7 @@ package vcluster
 
 import (
 	"fmt"
+	"strconv"
 
 	objectv1alpha2 "github.com/crossplane-contrib/provider-kubernetes/apis/object/v1alpha2"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
@@ -19,8 +20,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/yaml"
 
-	"github.com/ScapeLanis/GoVCluster/structs"
+	"strings"
 
+	"github.com/ScapeLanis/GoVCluster/structs"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -66,10 +68,15 @@ func createObject(obj runtime.Object, name, clustername, providername string) (*
 
 }
 
-func vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequest, desired map[resource.Name]*resource.DesiredComposed, namespace, clustername string) (*fnv1.RunFunctionResponse, error) {
-	// Define Nodeport and IPAdress
-	var ipadresse string = "192.168.49.2"
-	var nodeport string = ":30180"
+func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequest, desired map[resource.Name]*resource.DesiredComposed, namespace, clustername, ipadresse, nodeport string) (*fnv1.RunFunctionResponse, error) {
+	cleannodeport := strings.TrimPrefix(nodeport, ":")
+	portInt64, err := strconv.ParseInt(cleannodeport, 10, 32)
+	if err != nil {
+		fmt.Println("Fehler beim Parsen:", err)
+		return rsp, err
+	}
+
+	nodeportint32 := int32(portInt64)
 
 	serviceaccount_vc := &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
@@ -1062,7 +1069,7 @@ func vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 					Port:       443,
 					TargetPort: intstr.FromInt(8443),
 					Protocol:   corev1.ProtocolTCP,
-					NodePort:   30180,
+					NodePort:   nodeportint32,
 				},
 			},
 			Type: corev1.ServiceTypeNodePort,

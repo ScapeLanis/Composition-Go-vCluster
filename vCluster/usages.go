@@ -12,7 +12,7 @@ import (
 	"github.com/ScapeLanis/GoVCluster/structs"
 )
 
-func createUsages(desired map[resource.Name]*resource.DesiredComposed, clustername string) error {
+func CreateUsages(desired map[resource.Name]*resource.DesiredComposed, clustername string) error {
 
 	usage_statefulset := &v1beta1.Usage{
 		TypeMeta: metav1.TypeMeta{
