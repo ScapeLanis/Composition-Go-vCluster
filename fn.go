@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	protectionv1beta1 "github.com/crossplane/crossplane/apis/apiextensions/v1beta1"
+	v1beta1 "github.com/crossplane/crossplane/apis/apiextensions/v1beta1"
 
 	objectv1alpha2 "github.com/crossplane-contrib/provider-kubernetes/apis/object/v1alpha2"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
@@ -88,7 +88,7 @@ func init() {
 	composed.Scheme.AddKnownTypes(rbacv1.SchemeGroupVersion, &rbacv1.RoleBinding{})
 	composed.Scheme.AddKnownTypes(appsv1.SchemeGroupVersion, &appsv1.StatefulSet{})
 	composed.Scheme.AddKnownTypes(objectv1alpha2.SchemeGroupVersion, &objectv1alpha2.Object{})
-	composed.Scheme.AddKnownTypes(protectionv1beta1.SchemeGroupVersion, &protectionv1beta1.Usage{})
+	composed.Scheme.AddKnownTypes(v1beta1.SchemeGroupVersion, &v1beta1.Usage{})
 }
 
 // RunFunction ist der Einstiegspunkt für die Crossplane-Funktion.
@@ -1177,29 +1177,127 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 
 	}
 
-	usage := &protectionv1beta1.Usage{
+	/*
+			usageprovider := &v1beta1.Usage{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Usage",
+					APIVersion: "apiextensions.crossplane.io/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "usage-provider-" + clustername,
+				},
+				Spec: v1beta1.UsageSpec{
+					Of: v1beta1.Resource{
+						APIVersion: "kubernetes.crossplane.io/v1alpha1",
+						Kind:       "ProviderConfig",
+						ResourceSelector: &v1beta1.ResourceSelector{
+							MatchLabels: map[string]string{
+								"app":                 "vcluster",
+								"release":             clustername,
+								"providerforvcluster": "true",
+							},
+						},
+					},
+					By: &v1beta1.Resource{
+						Kind:       "Pod",
+						APIVersion: "v1",
+						ResourceSelector: &v1beta1.ResourceSelector{
+							MatchLabels: map[string]string{
+								"invcluster": "true",
+							},
+							MatchControllerRef: boolPtr(false),
+						},
+					},
+					Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+					ReplayDeletion: boolPtr(true),
+				},
+			}
+
+		b, err := composed.From(usageprovider)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+		}
+		desired[resource.Name("usage-provider-"+clustername)] = &resource.DesiredComposed{
+			Resource: b,
+			Ready:    resource.ReadyTrue,
+		}*/
+
+	usage_statefulset := &v1beta1.Usage{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Usage",
 			APIVersion: "apiextensions.crossplane.io/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "usage-" + clustername,
+			Name: "usage-statefulset" + clustername,
 		},
-		Spec: protectionv1beta1.UsageSpec{
-			Of: protectionv1beta1.Resource{
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
 				APIVersion: "apps/v1",
 				Kind:       "StatefulSet",
-				ResourceSelector: &protectionv1beta1.ResourceSelector{
+				ResourceSelector: &v1beta1.ResourceSelector{
 					MatchLabels: map[string]string{
 						"app":     "vcluster",
 						"release": clustername,
 					},
 				},
 			},
-			By: &protectionv1beta1.Resource{
+			By: &v1beta1.Resource{
 				Kind:       "ProviderConfig",
 				APIVersion: "kubernetes.crossplane.io/v1alpha1",
-				ResourceSelector: &protectionv1beta1.ResourceSelector{
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vclusterconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"providerforvcluster": "true",
+						"app":                 "vcluster-" + clustername,
+						"release":             clustername,
+					},
+					MatchControllerRef: boolPtr(false),
+				},
+			},
+			Reason:         strPtr("Ressource im Cluster noch vorhanden"),
+			ReplayDeletion: boolPtr(true),
+		},
+	}
+
+	a, err := composed.From(usage_statefulset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("usage-statefulset"+clustername)] = &resource.DesiredComposed{
+		Resource: a,
+		Ready:    resource.ReadyTrue,
+	}
+	usage_configmap := &v1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "usage-configmap-" + clustername,
+		},
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
+				APIVersion: "v1",
+				Kind:       "ConfigMap",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vc-coredns-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"app":     "vcluster",
+						"release": clustername,
+					},
+				},
+			},
+			By: &v1beta1.Resource{
+				Kind:       "ProviderConfig",
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vclusterconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
 					MatchLabels: map[string]string{
 						"providerforvcluster": "true",
 						"app":                 "vcluster-" + clustername,
@@ -1213,59 +1311,468 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		},
 	}
 
-	a, err := composed.From(usage)
+	z, err := composed.From(usage_configmap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
 	}
-	desired[resource.Name("usage-"+clustername)] = &resource.DesiredComposed{
-		Resource: a,
+	desired[resource.Name("usage-configmap-"+clustername)] = &resource.DesiredComposed{
+		Resource: z,
 		Ready:    resource.ReadyTrue,
 	}
-	/*
-		usageprovider := &protectionv1beta1.Usage{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Usage",
-				APIVersion: "apiextensions.crossplane.io/v1beta1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "usage-provider-" + clustername,
-			},
-			Spec: protectionv1beta1.UsageSpec{
-				Of: protectionv1beta1.Resource{
-					APIVersion: "kubernetes.crossplane.io/v1alpha1",
-					Kind:       "ProviderConfig",
-					ResourceSelector: &protectionv1beta1.ResourceSelector{
-						MatchLabels: map[string]string{
-							"app":                 "vcluster",
-							"release":             clustername,
-							"providerforvcluster": "true",
-						},
+	usage_service := &v1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "usage-service-nodeport-" + clustername,
+		},
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
+				APIVersion: "v1",
+				Kind:       "Service",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vcluster-nodeport-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"app":     "vcluster",
+						"release": clustername,
 					},
 				},
-				By: &protectionv1beta1.Resource{
-					Kind:       "Pod",
-					APIVersion: "v1",
-					ResourceSelector: &protectionv1beta1.ResourceSelector{
-						MatchLabels: map[string]string{
-							"invcluster": "true",
-						},
-						MatchControllerRef: boolPtr(false),
-					},
-				},
-				Reason:         strPtr("Ressource im Clutser noch vorhanden"),
-				ReplayDeletion: boolPtr(true),
 			},
-		}
+			By: &v1beta1.Resource{
+				Kind:       "ProviderConfig",
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vclusterconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"providerforvcluster": "true",
+						"app":                 "vcluster-" + clustername,
+						"release":             clustername,
+					},
+					MatchControllerRef: boolPtr(false),
+				},
+			},
+			Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+			ReplayDeletion: boolPtr(true),
+		},
+	}
 
-		b, err := composed.From(usageprovider)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert object to composed: %w", err)
-		}
-		desired[resource.Name("usage-provider-"+clustername)] = &resource.DesiredComposed{
-			Resource: b,
-			Ready:    resource.ReadyTrue,
-		}
-	*/
+	c, err := composed.From(usage_service)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("usage-service-"+clustername)] = &resource.DesiredComposed{
+		Resource: c,
+		Ready:    resource.ReadyTrue,
+	}
+	usage_service_vcluster := &v1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "usage-service-vcluster-" + clustername,
+		},
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
+				APIVersion: "v1",
+				Kind:       "Service",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"app":                      "vcluster",
+						"release":                  clustername,
+						"vcluster.loft.sh/service": "true",
+					},
+				},
+			},
+			By: &v1beta1.Resource{
+				Kind:       "ProviderConfig",
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vclusterconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"providerforvcluster": "true",
+						"app":                 "vcluster-" + clustername,
+						"release":             clustername,
+					},
+					MatchControllerRef: boolPtr(false),
+				},
+			},
+			Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+			ReplayDeletion: boolPtr(true),
+		},
+	}
+
+	d, err := composed.From(usage_service_vcluster)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("usage-service-vcluster-"+clustername)] = &resource.DesiredComposed{
+		Resource: d,
+		Ready:    resource.ReadyTrue,
+	}
+	usage_service_headless := &v1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "usage-service-headless-" + clustername,
+		},
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
+				APIVersion: "v1",
+				Kind:       "Service",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: clustername + "-headless",
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"app":     "vcluster",
+						"release": clustername,
+					},
+				},
+			},
+			By: &v1beta1.Resource{
+				Kind:       "ProviderConfig",
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vclusterconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"providerforvcluster": "true",
+						"app":                 "vcluster-" + clustername,
+						"release":             clustername,
+					},
+					MatchControllerRef: boolPtr(false),
+				},
+			},
+			Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+			ReplayDeletion: boolPtr(true),
+		},
+	}
+
+	e, err := composed.From(usage_service_headless)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("usage-service-headless-"+clustername)] = &resource.DesiredComposed{
+		Resource: e,
+		Ready:    resource.ReadyTrue,
+	}
+	usage_secret := &v1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "usage-secret-" + clustername,
+		},
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
+				APIVersion: "v1",
+				Kind:       "Secret",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vc-config-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"app":     "vcluster",
+						"release": clustername,
+					},
+				},
+			},
+			By: &v1beta1.Resource{
+				Kind:       "ProviderConfig",
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vclusterconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"providerforvcluster": "true",
+						"app":                 "vcluster-" + clustername,
+						"release":             clustername,
+					},
+					MatchControllerRef: boolPtr(false),
+				},
+			},
+			Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+			ReplayDeletion: boolPtr(true),
+		},
+	}
+
+	g, err := composed.From(usage_secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("usage-secret-"+clustername)] = &resource.DesiredComposed{
+		Resource: g,
+		Ready:    resource.ReadyTrue,
+	}
+
+	usage_role := &v1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "usage-role-" + clustername,
+		},
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
+				APIVersion: "rbac.authorization.k8s.io/v1",
+				Kind:       "Role",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vc-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"app":     "vcluster",
+						"release": clustername,
+					},
+				},
+			},
+			By: &v1beta1.Resource{
+				Kind:       "ProviderConfig",
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vclusterconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"providerforvcluster": "true",
+						"app":                 "vcluster-" + clustername,
+						"release":             clustername,
+					},
+					MatchControllerRef: boolPtr(false),
+				},
+			},
+			Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+			ReplayDeletion: boolPtr(true),
+		},
+	}
+
+	g, err = composed.From(usage_role)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("usage-role-"+clustername)] = &resource.DesiredComposed{
+		Resource: g,
+		Ready:    resource.ReadyTrue,
+	}
+	usage_rolebinding := &v1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "usage-rolebinding-" + clustername,
+		},
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
+				APIVersion: "rbac.authorization.k8s.io/v1",
+				Kind:       "Rolebinding",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vc-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"app":     "vcluster",
+						"release": clustername,
+					},
+				},
+			},
+			By: &v1beta1.Resource{
+				Kind:       "ProviderConfig",
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vclusterconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"providerforvcluster": "true",
+						"app":                 "vcluster-" + clustername,
+						"release":             clustername,
+					},
+					MatchControllerRef: boolPtr(false),
+				},
+			},
+			Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+			ReplayDeletion: boolPtr(true),
+		},
+	}
+
+	g, err = composed.From(usage_rolebinding)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("usage-rolebinding-"+clustername)] = &resource.DesiredComposed{
+		Resource: g,
+		Ready:    resource.ReadyTrue,
+	}
+	usage_serviceaccount_workload := &v1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "usage-servieaccount-workload" + clustername,
+		},
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
+				APIVersion: "v1",
+				Kind:       "ServiceAccount",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vc-workload-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"app":     "vcluster",
+						"release": clustername,
+					},
+				},
+			},
+			By: &v1beta1.Resource{
+				Kind:       "ProviderConfig",
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vclusterconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"providerforvcluster": "true",
+						"app":                 "vcluster-" + clustername,
+						"release":             clustername,
+					},
+					MatchControllerRef: boolPtr(false),
+				},
+			},
+			Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+			ReplayDeletion: boolPtr(true),
+		},
+	}
+
+	g, err = composed.From(usage_serviceaccount_workload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("usage-serviceaccount-workload-"+clustername)] = &resource.DesiredComposed{
+		Resource: g,
+		Ready:    resource.ReadyTrue,
+	}
+	usage_serviceaccount := &v1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "usage-servieaccount" + clustername,
+		},
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
+				APIVersion: "v1",
+				Kind:       "ServiceAccount",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vc-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"app":     "vcluster",
+						"release": clustername,
+					},
+				},
+			},
+			By: &v1beta1.Resource{
+				Kind:       "ProviderConfig",
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vclusterconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"providerforvcluster": "true",
+						"app":                 "vcluster-" + clustername,
+						"release":             clustername,
+					},
+					MatchControllerRef: boolPtr(false),
+				},
+			},
+			Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+			ReplayDeletion: boolPtr(true),
+		},
+	}
+
+	g, err = composed.From(usage_serviceaccount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("usage-serviceaccount-"+clustername)] = &resource.DesiredComposed{
+		Resource: g,
+		Ready:    resource.ReadyTrue,
+	}
+	//Kubeconfig Secret for vcluster
+	usage_secret_kubeconfig := &v1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "usage-secret-kubeconfig" + clustername,
+		},
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
+				APIVersion: "v1",
+				Kind:       "Secret",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vc-kubeconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"app":     "vcluster",
+						"release": clustername,
+					},
+				},
+			},
+			By: &v1beta1.Resource{
+				Kind:       "ProviderConfig",
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vclusterconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"providerforvcluster": "true",
+						"app":                 "vcluster-" + clustername,
+						"release":             clustername,
+					},
+					MatchControllerRef: boolPtr(false),
+				},
+			},
+			Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+			ReplayDeletion: boolPtr(true),
+		},
+	}
+
+	g, err = composed.From(usage_secret_kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("usage-secret-kubeconfig-"+clustername)] = &resource.DesiredComposed{
+		Resource: g,
+		Ready:    resource.ReadyTrue,
+	}
+
 	testpodzwei := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
