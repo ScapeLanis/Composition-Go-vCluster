@@ -1177,51 +1177,6 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 
 	}
 
-	/*
-			usageprovider := &v1beta1.Usage{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Usage",
-					APIVersion: "apiextensions.crossplane.io/v1beta1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "usage-provider-" + clustername,
-				},
-				Spec: v1beta1.UsageSpec{
-					Of: v1beta1.Resource{
-						APIVersion: "kubernetes.crossplane.io/v1alpha1",
-						Kind:       "ProviderConfig",
-						ResourceSelector: &v1beta1.ResourceSelector{
-							MatchLabels: map[string]string{
-								"app":                 "vcluster",
-								"release":             clustername,
-								"providerforvcluster": "true",
-							},
-						},
-					},
-					By: &v1beta1.Resource{
-						Kind:       "Pod",
-						APIVersion: "v1",
-						ResourceSelector: &v1beta1.ResourceSelector{
-							MatchLabels: map[string]string{
-								"invcluster": "true",
-							},
-							MatchControllerRef: boolPtr(false),
-						},
-					},
-					Reason:         strPtr("Ressource im Clutser noch vorhanden"),
-					ReplayDeletion: boolPtr(true),
-				},
-			}
-
-		b, err := composed.From(usageprovider)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert object to composed: %w", err)
-		}
-		desired[resource.Name("usage-provider-"+clustername)] = &resource.DesiredComposed{
-			Resource: b,
-			Ready:    resource.ReadyTrue,
-		}*/
-
 	usage_statefulset := &v1beta1.Usage{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Usage",
@@ -1232,13 +1187,10 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		},
 		Spec: v1beta1.UsageSpec{
 			Of: v1beta1.Resource{
-				APIVersion: "apps/v1",
-				Kind:       "StatefulSet",
-				ResourceSelector: &v1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"app":     "vcluster",
-						"release": clustername,
-					},
+				APIVersion: "kubernetes.crossplane.io/v1alpha2",
+				Kind:       "Object",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "role-" + clustername,
 				},
 			},
 			By: &v1beta1.Resource{
@@ -1279,16 +1231,10 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		},
 		Spec: v1beta1.UsageSpec{
 			Of: v1beta1.Resource{
-				APIVersion: "v1",
-				Kind:       "ConfigMap",
+				APIVersion: "kubernetes.crossplane.io/v1alpha2",
+				Kind:       "Object",
 				ResourceRef: &v1beta1.ResourceRef{
-					Name: "vc-coredns-" + clustername,
-				},
-				ResourceSelector: &v1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"app":     "vcluster",
-						"release": clustername,
-					},
+					Name: "configmap-" + clustername,
 				},
 			},
 			By: &v1beta1.Resource{
@@ -1329,16 +1275,10 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		},
 		Spec: v1beta1.UsageSpec{
 			Of: v1beta1.Resource{
-				APIVersion: "v1",
-				Kind:       "Service",
+				APIVersion: "kubernetes.crossplane.io/v1alpha2",
+				Kind:       "Object",
 				ResourceRef: &v1beta1.ResourceRef{
-					Name: "vcluster-nodeport-" + clustername,
-				},
-				ResourceSelector: &v1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"app":     "vcluster",
-						"release": clustername,
-					},
+					Name: "exposevclusternodeport-" + clustername,
 				},
 			},
 			By: &v1beta1.Resource{
@@ -1379,17 +1319,10 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		},
 		Spec: v1beta1.UsageSpec{
 			Of: v1beta1.Resource{
-				APIVersion: "v1",
-				Kind:       "Service",
+				APIVersion: "kubernetes.crossplane.io/v1alpha2",
+				Kind:       "Object",
 				ResourceRef: &v1beta1.ResourceRef{
-					Name: clustername,
-				},
-				ResourceSelector: &v1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"app":                      "vcluster",
-						"release":                  clustername,
-						"vcluster.loft.sh/service": "true",
-					},
+					Name: "service-" + clustername,
 				},
 			},
 			By: &v1beta1.Resource{
@@ -1430,16 +1363,10 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		},
 		Spec: v1beta1.UsageSpec{
 			Of: v1beta1.Resource{
-				APIVersion: "v1",
-				Kind:       "Service",
+				APIVersion: "kubernetes.crossplane.io/v1alpha2",
+				Kind:       "Object",
 				ResourceRef: &v1beta1.ResourceRef{
-					Name: clustername + "-headless",
-				},
-				ResourceSelector: &v1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"app":     "vcluster",
-						"release": clustername,
-					},
+					Name: "service-headless-" + clustername,
 				},
 			},
 			By: &v1beta1.Resource{
@@ -1480,16 +1407,10 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		},
 		Spec: v1beta1.UsageSpec{
 			Of: v1beta1.Resource{
-				APIVersion: "v1",
-				Kind:       "Secret",
+				APIVersion: "kubernetes.crossplane.io/v1alpha2",
+				Kind:       "Object",
 				ResourceRef: &v1beta1.ResourceRef{
-					Name: "vc-config-" + clustername,
-				},
-				ResourceSelector: &v1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"app":     "vcluster",
-						"release": clustername,
-					},
+					Name: "secret-" + clustername,
 				},
 			},
 			By: &v1beta1.Resource{
@@ -1531,16 +1452,10 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		},
 		Spec: v1beta1.UsageSpec{
 			Of: v1beta1.Resource{
-				APIVersion: "rbac.authorization.k8s.io/v1",
-				Kind:       "Role",
+				APIVersion: "kubernetes.crossplane.io/v1alpha2",
+				Kind:       "Object",
 				ResourceRef: &v1beta1.ResourceRef{
-					Name: "vc-" + clustername,
-				},
-				ResourceSelector: &v1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"app":     "vcluster",
-						"release": clustername,
-					},
+					Name: "role-" + clustername,
 				},
 			},
 			By: &v1beta1.Resource{
@@ -1581,16 +1496,10 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		},
 		Spec: v1beta1.UsageSpec{
 			Of: v1beta1.Resource{
-				APIVersion: "rbac.authorization.k8s.io/v1",
-				Kind:       "Rolebinding",
+				APIVersion: "kubernetes.crossplane.io/v1alpha2",
+				Kind:       "Object",
 				ResourceRef: &v1beta1.ResourceRef{
-					Name: "vc-" + clustername,
-				},
-				ResourceSelector: &v1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"app":     "vcluster",
-						"release": clustername,
-					},
+					Name: "rolebinding-" + clustername,
 				},
 			},
 			By: &v1beta1.Resource{
@@ -1627,20 +1536,14 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 			APIVersion: "apiextensions.crossplane.io/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "usage-servieaccount-workload" + clustername,
+			Name: "usage-serviceaccount-workload-" + clustername,
 		},
 		Spec: v1beta1.UsageSpec{
 			Of: v1beta1.Resource{
-				APIVersion: "v1",
-				Kind:       "ServiceAccount",
+				APIVersion: "kubernetes.crossplane.io/v1alpha2",
+				Kind:       "Object",
 				ResourceRef: &v1beta1.ResourceRef{
-					Name: "vc-workload-" + clustername,
-				},
-				ResourceSelector: &v1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"app":     "vcluster",
-						"release": clustername,
-					},
+					Name: "serviceaccount-workload-" + clustername,
 				},
 			},
 			By: &v1beta1.Resource{
@@ -1677,20 +1580,14 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 			APIVersion: "apiextensions.crossplane.io/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "usage-servieaccount" + clustername,
+			Name: "usage-serviceaccount-" + clustername,
 		},
 		Spec: v1beta1.UsageSpec{
 			Of: v1beta1.Resource{
-				APIVersion: "v1",
-				Kind:       "ServiceAccount",
+				APIVersion: "kubernetes.crossplane.io/v1alpha2",
+				Kind:       "Object",
 				ResourceRef: &v1beta1.ResourceRef{
-					Name: "vc-" + clustername,
-				},
-				ResourceSelector: &v1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"app":     "vcluster",
-						"release": clustername,
-					},
+					Name: "serviceaccount-vc-" + clustername,
 				},
 			},
 			By: &v1beta1.Resource{
@@ -1721,57 +1618,52 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		Resource: g,
 		Ready:    resource.ReadyTrue,
 	}
-	//Kubeconfig Secret for vcluster
-	usage_secret_kubeconfig := &v1beta1.Usage{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Usage",
-			APIVersion: "apiextensions.crossplane.io/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "usage-secret-kubeconfig" + clustername,
-		},
-		Spec: v1beta1.UsageSpec{
-			Of: v1beta1.Resource{
-				APIVersion: "v1",
-				Kind:       "Secret",
-				ResourceRef: &v1beta1.ResourceRef{
-					Name: "vc-kubeconfig-" + clustername,
-				},
-				ResourceSelector: &v1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"app":     "vcluster",
-						"release": clustername,
+	/*
+		//Kubeconfig Secret for vcluster
+		usage_secret_kubeconfig := &v1beta1.Usage{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Usage",
+				APIVersion: "apiextensions.crossplane.io/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "usage-secret-kubeconfig" + clustername,
+			},
+			Spec: v1beta1.UsageSpec{
+				Of: v1beta1.Resource{
+					APIVersion: "kubernetes.crossplane.io/v1alpha2",
+					Kind:       "Object",
+					ResourceRef: &v1beta1.ResourceRef{
+						Name: "vclusterkubeconfig-" + clustername,
 					},
 				},
-			},
-			By: &v1beta1.Resource{
-				Kind:       "ProviderConfig",
-				APIVersion: "kubernetes.crossplane.io/v1alpha1",
-				ResourceRef: &v1beta1.ResourceRef{
-					Name: "vclusterconfig-" + clustername,
-				},
-				ResourceSelector: &v1beta1.ResourceSelector{
-					MatchLabels: map[string]string{
-						"providerforvcluster": "true",
-						"app":                 "vcluster-" + clustername,
-						"release":             clustername,
+				By: &v1beta1.Resource{
+					Kind:       "ProviderConfig",
+					APIVersion: "kubernetes.crossplane.io/v1alpha1",
+					ResourceRef: &v1beta1.ResourceRef{
+						Name: "vclusterconfig-" + clustername,
 					},
-					MatchControllerRef: boolPtr(false),
+					ResourceSelector: &v1beta1.ResourceSelector{
+						MatchLabels: map[string]string{
+							"providerforvcluster": "true",
+							"app":                 "vcluster-" + clustername,
+							"release":             clustername,
+						},
+						MatchControllerRef: boolPtr(false),
+					},
 				},
+				Reason:         strPtr("Ressource im Clutser noch vorhanden"),
+				ReplayDeletion: boolPtr(true),
 			},
-			Reason:         strPtr("Ressource im Clutser noch vorhanden"),
-			ReplayDeletion: boolPtr(true),
-		},
-	}
+		}
 
-	g, err = composed.From(usage_secret_kubeconfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
-	}
-	desired[resource.Name("usage-secret-kubeconfig-"+clustername)] = &resource.DesiredComposed{
-		Resource: g,
-		Ready:    resource.ReadyTrue,
-	}
+		g, err = composed.From(usage_secret_kubeconfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+		}
+		desired[resource.Name("usage-secret-kubeconfig-"+clustername)] = &resource.DesiredComposed{
+			Resource: g,
+			Ready:    resource.ReadyTrue,
+		}*/
 
 	testpodzwei := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
