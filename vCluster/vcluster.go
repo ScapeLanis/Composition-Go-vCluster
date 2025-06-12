@@ -5,12 +5,12 @@ import (
 	"strconv"
 
 	objectv1alpha2 "github.com/crossplane-contrib/provider-kubernetes/apis/object/v1alpha2"
+	providerv1alpha1 "github.com/crossplane-contrib/provider-kubernetes/apis/v1alpha1"
+	kconfig "github.com/crossplane-contrib/provider-kubernetes/pkg/kube/config"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
-	"github.com/crossplane/function-sdk-go/errors"
 	fnv1 "github.com/crossplane/function-sdk-go/proto/v1"
 	"github.com/crossplane/function-sdk-go/resource"
 	"github.com/crossplane/function-sdk-go/resource/composed"
-	"github.com/crossplane/function-sdk-go/response"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -26,7 +26,12 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func createObject(obj runtime.Object, name, clustername, providername string) (*resource.DesiredComposed, error) {
+func init() {
+
+	composed.Scheme.AddKnownTypes(providerv1alpha1.SchemeGroupVersion, &providerv1alpha1.ProviderConfig{})
+
+}
+func CreateObject(obj runtime.Object, name, clustername, providername string) (*resource.DesiredComposed, error) {
 	if obj == nil {
 		return nil, fmt.Errorf("runtime.Object input is nil")
 	}
@@ -68,12 +73,12 @@ func createObject(obj runtime.Object, name, clustername, providername string) (*
 
 }
 
-func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequest, desired map[resource.Name]*resource.DesiredComposed, namespace, clustername, ipadresse, nodeport string) (*fnv1.RunFunctionResponse, error) {
+func Vclustercomponents(req *fnv1.RunFunctionRequest, desired map[resource.Name]*resource.DesiredComposed, namespace, clustername, ipadresse, nodeport string) error {
 	cleannodeport := strings.TrimPrefix(nodeport, ":")
 	portInt64, err := strconv.ParseInt(cleannodeport, 10, 32)
 	if err != nil {
 		fmt.Println("Fehler beim Parsen:", err)
-		return rsp, err
+		return err
 	}
 
 	nodeportint32 := int32(portInt64)
@@ -92,10 +97,9 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 			},
 		},
 	}
-	obj, err := createObject(serviceaccount_vc, "serviceaccount-vc-", clustername, "kubernetes-provider")
+	obj, err := CreateObject(serviceaccount_vc, "serviceaccount-vc-", clustername, "kubernetes-provider")
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
 	desired[resource.Name("serviceaccount_vc-"+clustername)] = obj
 
@@ -113,17 +117,15 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 			},
 		},
 	}
-	obj, err = createObject(serviceaccount_workload, "serviceaccount-workload-", clustername, "kubernetes-provider")
+	obj, err = CreateObject(serviceaccount_workload, "serviceaccount-workload-", clustername, "kubernetes-provider")
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
 	desired[resource.Name("serviceaccount-workload-"+clustername)] = obj
 
 	vclusterconfig, err := structs.NewDefaultConfig()
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
 
 	vclusterconfig.ControlPlane.Proxy.ExtraSANs = append(
@@ -133,8 +135,7 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 
 	yamlBytes, err := yaml.Marshal(vclusterconfig)
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
 
 	secret := &corev1.Secret{
@@ -156,10 +157,9 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 		},
 	}
 
-	obj, err = createObject(secret, "secret-", clustername, "kubernetes-provider")
+	obj, err = CreateObject(secret, "secret-", clustername, "kubernetes-provider")
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
 	desired[resource.Name("secret-"+clustername)] = obj
 
@@ -472,8 +472,7 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 	for _, dnsobj := range dns_objects {
 		data, err := yaml.Marshal(dnsobj)
 		if err != nil {
-			response.Fatal(rsp, err)
-			return rsp, nil
+			return err
 		}
 		result += string(data) + ("\n---\n")
 	}
@@ -491,10 +490,9 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 			"coredns.yaml": result,
 		},
 	}
-	obj, err = createObject(configmap, "configmap-", clustername, "kubernetes-provider")
+	obj, err = CreateObject(configmap, "configmap-", clustername, "kubernetes-provider")
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
 	desired[resource.Name("configmap-"+clustername)] = obj
 
@@ -539,10 +537,9 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 			},
 		},
 	}
-	obj, err = createObject(role, "role-", clustername, "kubernetes-provider")
+	obj, err = CreateObject(role, "role-", clustername, "kubernetes-provider")
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
 	desired[resource.Name("role-"+clustername)] = obj
 
@@ -572,10 +569,9 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 			Name:     "vc-" + clustername,
 		},
 	}
-	obj, err = createObject(rolebinding, "rolebinding-", clustername, "kubernetes-provider")
+	obj, err = CreateObject(rolebinding, "rolebinding-", clustername, "kubernetes-provider")
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
 	desired[resource.Name("rolebinding-"+clustername)] = obj
 
@@ -610,10 +606,9 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 			},
 		},
 	}
-	obj, err = createObject(service_headless, "service-headless-", clustername, "kubernetes-provider")
+	obj, err = CreateObject(service_headless, "service-headless-", clustername, "kubernetes-provider")
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
 	desired[resource.Name("service-headless-"+clustername)] = obj
 
@@ -655,10 +650,9 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 			},
 		},
 	}
-	obj, err = createObject(service, "service-", clustername, "kubernetes-provider")
+	obj, err = CreateObject(service, "service-", clustername, "kubernetes-provider")
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
 	desired[resource.Name("service-"+clustername)] = obj
 
@@ -1002,8 +996,7 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 	}
 	so, err := composed.From(statefulsetobj)
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
 	desired[resource.Name("statefulset-"+clustername)] = &resource.DesiredComposed{
 		Resource: so,
@@ -1011,7 +1004,7 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 	}
 
 	//ProviderConfig for vCluster
-	providerconfig := &structs.ProviderConfig{
+	providerconfig := &providerv1alpha1.ProviderConfig{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ProviderConfig",
 			APIVersion: "kubernetes.crossplane.io/v1alpha1",
@@ -1024,13 +1017,18 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 				"release":             clustername,
 			},
 		},
-		Spec: structs.ProviderConfigSpec{
-			Credentials: structs.ProviderConfigSpecCredentials{
+		Spec: kconfig.ProviderConfigSpec{
+			Credentials: kconfig.ProviderCredentials{
 				Source: "Secret",
-				SecretRef: structs.SecretReference{
-					Namespace: namespace,
-					Name:      "vc-kubeconfig-" + clustername,
-					Key:       "config.yaml",
+				CommonCredentialSelectors: xpv1.CommonCredentialSelectors{
+					SecretRef: &xpv1.SecretKeySelector{
+
+						Key: "config.yaml",
+						SecretReference: xpv1.SecretReference{
+							Namespace: namespace,
+							Name:      "vc-kubeconfig-" + clustername,
+						},
+					},
 				},
 			},
 		},
@@ -1038,7 +1036,7 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 
 	u, err := composed.From(providerconfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert object to composed: %w", err)
+		return fmt.Errorf("failed to convert object to composed: %w", err)
 	}
 	desired[resource.Name("providerconfig-"+clustername)] = &resource.DesiredComposed{
 		Resource: u,
@@ -1075,39 +1073,37 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 			Type: corev1.ServiceTypeNodePort,
 		},
 	}
-	obj, err = createObject(exposevclusternodeport, "exposevclusternodeport-", clustername, "kubernetes-provider")
+	obj, err = CreateObject(exposevclusternodeport, "exposevclusternodeport-", clustername, "kubernetes-provider")
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
 	desired[resource.Name("exposevclusternodeport-"+clustername)] = obj
 
+	_, err = CreateUsage(exposevclusternodeport, providerconfig, "weil halt")
+
 	resourcestateful := req.Observed.Resources["statefulset-"+clustername]
 	if resourcestateful == nil {
-		response.Warning(rsp, fmt.Errorf("observed resource for statefulset-%s is nil", clustername))
+		//err = fmt.Errorf("observed resource statefulset-%s is nil", clustername)
+		return nil
 	} else {
 		connection_details := resourcestateful.GetConnectionDetails()
 		if connection_details != nil {
 			kubeconfigBytes, ok := connection_details["config"]
 			if !ok {
-				response.Warning(rsp, fmt.Errorf("MissingKubeConfig"))
-				return rsp, nil
+				return err
 			}
 			kubeconfig, err := clientcmd.Load(kubeconfigBytes)
 			if err != nil {
-				response.Fatal(rsp, fmt.Errorf("fehler load configbytes"))
-				return rsp, nil
+				return err
 			}
 			cluster, exists := kubeconfig.Clusters["kubernetes"]
 			if !exists || cluster == nil {
-				response.Fatal(rsp, fmt.Errorf("cluster 'kubernetes' not found in kubeconfig"))
-				return rsp, nil
+				return err
 			}
 			kubeconfig.Clusters["kubernetes"].Server = ipadresse + nodeport
 			configbytechanged, err := clientcmd.Write(*kubeconfig)
 			if err != nil {
-				response.Fatal(rsp, errors.New("Write kubeconfig fehler"))
-				return rsp, nil
+				return err
 			}
 
 			secretvcluster_kubeconfig := &corev1.Secret{
@@ -1128,15 +1124,14 @@ func Vclustercomponents(rsp *fnv1.RunFunctionResponse, req *fnv1.RunFunctionRequ
 					"config.yaml": configbytechanged,
 				},
 			}
-			obj, err = createObject(secretvcluster_kubeconfig, "vclusterkubeconfig-", clustername, "kubernetes-provider")
+			obj, err = CreateObject(secretvcluster_kubeconfig, "vclusterkubeconfig-", clustername, "kubernetes-provider")
 			if err != nil {
-				response.Fatal(rsp, err)
-				return rsp, nil
+				return err
 			}
 			desired[resource.Name("secretvcluster-kubeconfig-"+clustername)] = obj
 
 		}
 
 	}
-	return rsp, nil
+	return nil
 }

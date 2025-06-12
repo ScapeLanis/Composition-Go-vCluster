@@ -1,13 +1,13 @@
 package incluster
 
 import (
+	vcluster "github.com/ScapeLanis/GoVCluster/vCluster"
 	"github.com/crossplane/function-sdk-go/resource"
-	"github.com/crossplane/function-sdk-go/response"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func createTestPod() {
+func CreateTestPod(desired map[resource.Name]*resource.DesiredComposed, clustername string) error {
 	testpodzwei := &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -29,9 +29,11 @@ func createTestPod() {
 			},
 		},
 	}
-	desired[resource.Name("testpodzwei-"+clustername)], err = createObject(testpodzwei, "testpodzwei-", clustername, "vclusterconfig-"+clustername)
+
+	obj, err := vcluster.CreateObject(testpodzwei, "testpodzwei-", clustername, "vclusterconfig-"+clustername)
 	if err != nil {
-		response.Fatal(rsp, err)
-		return rsp, nil
+		return err
 	}
+	desired[resource.Name("testpod-"+clustername)] = obj
+	return err
 }
