@@ -1,0 +1,48 @@
+kubectl apply -f - <<EOF
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: upbound-provider-kubernetes
+spec:
+  package: xpkg.upbound.io/upbound/provider-kubernetes:v0
+EOF
+
+kubectl wait --for condition=Healthy providers.pkg.crossplane.io/upbound-provider-kubernetes
+
+kubectl apply -f - <<EOF
+apiVersion: kubernetes.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: InjectedIdentity
+EOF
+
+kubectl apply -f - <<EOF
+apiVersion: kubernetes.crossplane.io/v1alpha2
+kind: Object
+metadata:
+  name: test
+spec:
+  forProvider:
+    manifest:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        namespace: default
+EOF
+
+kubectl wait --for condition=Ready object.kubernetes.crossplane.io/test
+
+name=$(kubectl get providerconfigusages.kubernetes.crossplane.io -l crossplane.io/provider-config=default -o jsonpath='{.items[*].metadata.name}')
+
+kubectl delete providerconfigs.kubernetes.crossplane.io/default --cascade=foreground --wait=false
+ sleep 5s
+kubectl delete object.kubernetes.crossplane.io/test --cascade=foreground --wait=false
+
+kubectl wait --for=Delete providerconfigusages.kubernetes.crossplane.io $name
+sleep 5s
+
+kubectl get providerconfigs.kubernetes.crossplane.io/default
+kubectl get object.kubernetes.crossplane.io/test
