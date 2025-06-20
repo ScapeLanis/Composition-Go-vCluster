@@ -5,7 +5,7 @@ import (
 
 	v1beta1 "github.com/crossplane/crossplane/apis/apiextensions/v1beta1"
 
-	invcluster "github.com/ScapeLanis/GoVCluster/resourcesinvcluster"
+	certmanager "github.com/ScapeLanis/GoVCluster/resourcesinvcluster/cert-manager"
 	vcluster "github.com/ScapeLanis/GoVCluster/vCluster"
 	objectv1alpha2 "github.com/crossplane-contrib/provider-kubernetes/apis/object/v1alpha2"
 	"github.com/crossplane/function-sdk-go/errors"
@@ -91,11 +91,18 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		return rsp, nil
 	}
 	//Create TestPod in vCluster
-	err = invcluster.CreateTestPod(desired, clustername)
+	/*
+		err = invcluster.CreateTestPod(desired, clustername)
+		if err != nil {
+			response.Fatal(rsp, errors.Wrapf(err, "Can not Create Testpod in vCluster"))
+			return rsp, nil
+		}*/
+	test, err := certmanager.CreateCRDCertManager(namespace, clustername, "353443")
 	if err != nil {
 		response.Fatal(rsp, errors.Wrapf(err, "Can not Create Testpod in vCluster"))
 		return rsp, nil
 	}
+	println(test)
 
 	// Übergib die Desired Ressourcen an die Response
 	if err := response.SetDesiredComposedResources(rsp, desired); err != nil {

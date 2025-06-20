@@ -10,6 +10,8 @@ import (
 
 func CreateCertManager(desired map[resource.Name]*resource.DesiredComposed, clustername string) error {
 	namespace := "cert-manager"
+
+	//Version Images and Labels
 	version := "v1.18.0"
 	certmanager.CreateClusterRolesCertManager(clustername, version)
 	certmanager.CreateServiceAccountsCertManager(namespace, clustername, version)
