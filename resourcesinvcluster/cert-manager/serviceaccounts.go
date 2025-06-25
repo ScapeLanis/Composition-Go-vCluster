@@ -66,28 +66,6 @@ func CreateServiceAccountsCertManager(namespace, clustername, version string) []
 		AutomountServiceAccountToken: structs.BoolPtr(true),
 	}
 
-	/*
-		serviceaccount_startupapicheck := &corev1.ServiceAccount{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ServiceAccount",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      clustername + "-cert-manager-startupapicheck",
-			Namespace: namespace,
-			Annotations: map[string]string{
-				""
-			},
-			Labels: map[string]string{
-				"app":                         "webhook",
-				"app.kubernetes.io/name":      "webhook",
-				"app.kubernetes.io/instance":  clustername,
-				"app.kubernetes.io/component": "webhook",
-				"app.kubernetes.io/version":   version,
-			},
-		},
-		AutomountServiceAccountToken: structs.BoolPtr(true),
-	} */
 	return []runtime.Object{
 		serviceaccount_cainjector,
 		serviceaccount_cert_manager,

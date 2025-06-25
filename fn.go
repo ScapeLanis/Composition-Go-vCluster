@@ -3,11 +3,10 @@ package main
 import (
 	"context"
 
-	v1beta1 "github.com/crossplane/crossplane/apis/apiextensions/v1beta1"
-
-	certmanager "github.com/ScapeLanis/GoVCluster/resourcesinvcluster/cert-manager"
+	invcluster "github.com/ScapeLanis/GoVCluster/resourcesinvcluster"
 	vcluster "github.com/ScapeLanis/GoVCluster/vCluster"
 	objectv1alpha2 "github.com/crossplane-contrib/provider-kubernetes/apis/object/v1alpha2"
+	v1beta1 "github.com/crossplane/crossplane/apis/apiextensions/v1beta1"
 	"github.com/crossplane/function-sdk-go/errors"
 	"github.com/crossplane/function-sdk-go/logging"
 	fnv1 "github.com/crossplane/function-sdk-go/proto/v1"
@@ -15,6 +14,7 @@ import (
 	"github.com/crossplane/function-sdk-go/resource/composed"
 	"github.com/crossplane/function-sdk-go/response"
 	appsv1 "k8s.io/api/apps/v1"
+	batch "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 )
@@ -37,6 +37,7 @@ func init() {
 	composed.Scheme.AddKnownTypes(appsv1.SchemeGroupVersion, &appsv1.StatefulSet{})
 	composed.Scheme.AddKnownTypes(objectv1alpha2.SchemeGroupVersion, &objectv1alpha2.Object{})
 	composed.Scheme.AddKnownTypes(v1beta1.SchemeGroupVersion, &v1beta1.Usage{})
+	composed.Scheme.AddKnownTypes(batch.SchemeGroupVersion, &batch.Job{})
 }
 
 // RunFunction ist der Einstiegspunkt für die Crossplane-Funktion.
@@ -97,12 +98,11 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 			response.Fatal(rsp, errors.Wrapf(err, "Can not Create Testpod in vCluster"))
 			return rsp, nil
 		}*/
-	test, err := certmanager.CreateCRDCertManager(namespace, clustername, "353443")
+	err = invcluster.CreateCertManager(desired, clustername)
 	if err != nil {
-		response.Fatal(rsp, errors.Wrapf(err, "Can not Create Testpod in vCluster"))
+		response.Fatal(rsp, errors.Wrapf(err, "Can not Create Cert-Manager"))
 		return rsp, nil
 	}
-	println(test)
 
 	// Übergib die Desired Ressourcen an die Response
 	if err := response.SetDesiredComposedResources(rsp, desired); err != nil {
