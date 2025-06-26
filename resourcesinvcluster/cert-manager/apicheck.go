@@ -10,6 +10,7 @@ import (
 )
 
 func CreateApiCheckCertManager(namespace, clustername, version string) []runtime.Object {
+
 	serviceaccount_startupapicheck := &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ServiceAccount",
@@ -20,12 +21,13 @@ func CreateApiCheckCertManager(namespace, clustername, version string) []runtime
 			Namespace: namespace,
 			Labels: map[string]string{
 				"app":                         "startupapicheck",
-				"app.kubernetes.io/instance":  "clustername",
+				"app.kubernetes.io/instance":  clustername,
 				"app.kubernetes.io/component": "startupapicheck",
 				"app.kubernetes.io/version":   version,
 			},
 		},
 	}
+
 	role_startupapicheck := &rbacv1.Role{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Role",
@@ -36,7 +38,7 @@ func CreateApiCheckCertManager(namespace, clustername, version string) []runtime
 			Namespace: namespace,
 			Labels: map[string]string{
 				"app":                         "startupapicheck",
-				"app.kubernetes.io/instance":  "clustername",
+				"app.kubernetes.io/instance":  clustername,
 				"app.kubernetes.io/component": "startupapicheck",
 				"app.kubernetes.io/version":   version,
 			},
@@ -63,6 +65,7 @@ func CreateApiCheckCertManager(namespace, clustername, version string) []runtime
 				"app.kubernetes.io/name":      "startupapicheck",
 				"app.kubernetes.io/instance":  clustername,
 				"app.kubernetes.io/component": "startupapicheck",
+				"app.kubernetes.io/version":   version,
 			},
 		},
 		RoleRef: rbacv1.RoleRef{
@@ -92,10 +95,11 @@ func CreateApiCheckCertManager(namespace, clustername, version string) []runtime
 				"app.kubernetes.io/name":      "startupapicheck",
 				"app.kubernetes.io/instance":  clustername,
 				"app.kubernetes.io/component": "startupapicheck",
+				"app.kubernetes.io/version":   version,
 			},
 		},
 		Spec: batch.JobSpec{
-			BackoffLimit: structs.Int32Ptr(4),
+			BackoffLimit: structs.Int32Ptr(15),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -103,6 +107,7 @@ func CreateApiCheckCertManager(namespace, clustername, version string) []runtime
 						"app.kubernetes.io/name":      "startupapicheck",
 						"app.kubernetes.io/instance":  clustername,
 						"app.kubernetes.io/component": "startupapicheck",
+						"app.kubernetes.io/version":   version,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -151,7 +156,7 @@ func CreateApiCheckCertManager(namespace, clustername, version string) []runtime
 	}
 
 	return []runtime.Object{
-
+		serviceaccount_startupapicheck,
 		role_startupapicheck,
 		rolebinding_startupapicheck,
 		job_apicheck,

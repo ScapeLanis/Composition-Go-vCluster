@@ -65,7 +65,7 @@ func CreateDeploymentsCertManager(namespace, clustername, version string) []runt
 							Image:           "quay.io/jetstack/cert-manager-cainjector:" + version,
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Args: []string{
-								"--v=2 --leader-election-namespace=kube-system",
+								"--v=2", "--leader-election-namespace=kube-system",
 							},
 							Ports: []corev1.ContainerPort{
 								{
@@ -158,7 +158,7 @@ func CreateDeploymentsCertManager(namespace, clustername, version string) []runt
 							Image:           "quay.io/jetstack/cert-manager-controller:" + version,
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Args: []string{
-								"--v=2 --cluster-resource-namespace=$(POD_NAMESPACE) --leader-election-namespace=kube-system --acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:" + version + " --max-concurrent-challenges=60",
+								"--v=2", "--cluster-resource-namespace=$(POD_NAMESPACE)", "--leader-election-namespace=kube-system", "--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:" + version, "--max-concurrent-challenges=60",
 							},
 							Ports: []corev1.ContainerPort{
 								{
@@ -270,7 +270,7 @@ func CreateDeploymentsCertManager(namespace, clustername, version string) []runt
 							Image:           "quay.io/jetstack/cert-manager-webhook:" + version,
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Args: []string{
-								"--v=2 --secure-port=10250 --dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE) --dynamic-serving-ca-secret-name=" + clustername + "-cert-manager-webhook --dynamic-serving-dns-names=" + clustername + "-cert-manager-webhook.$(POD_NAMESPACE) --dynamic-serving-dns-names=" + clustername + "-cert-manager-webhook.$(POD_NAMESPACE).svc",
+								"--v=2", "--secure-port=10250", "--dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)", "--dynamic-serving-ca-secret-name=" + clustername + "-cert-manager-webhook-ca", "--dynamic-serving-dns-names=" + clustername + "-cert-manager-webhook.$(POD_NAMESPACE)", "--dynamic-serving-dns-names=" + clustername + "-cert-manager-webhook.$(POD_NAMESPACE).svc",
 							},
 							Ports: []corev1.ContainerPort{
 								{

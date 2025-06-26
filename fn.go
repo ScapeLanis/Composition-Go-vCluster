@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	invcluster "github.com/ScapeLanis/GoVCluster/resourcesinvcluster"
 	vcluster "github.com/ScapeLanis/GoVCluster/vCluster"
@@ -47,7 +48,7 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 	rsp := response.To(req, response.DefaultTTL)
 	//Nodeport and IPAdresse from Minikube VM
 	var ipadresse string = "192.168.49.2"
-	var nodeport string = ":30180"
+	//var nodeport string = ":30180"
 	//Get XR
 	xr, err := request.GetObservedCompositeResource(req)
 	if err != nil {
@@ -79,8 +80,39 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		response.Fatal(rsp, errors.Wrapf(err, "cannot read spec.namespace field of %s", xr.Resource.GetKind()))
 		return rsp, nil
 	}
-	//Create vCluster Components
-	err = vcluster.Vclustercomponents(req, desired, namespace, clustername, ipadresse, nodeport)
+
+	targetName := "vcluster-nodeport-" + clustername
+	for _, res := range req.Observed.Resources {
+		if res.Resource == nil {
+			continue
+		}
+
+		kind := res.Resource.Fields["kind"].GetStringValue()
+		if kind != "Service" {
+			continue
+		}
+
+		metadata := res.Resource.Fields["metadata"].GetStructValue()
+		name := metadata.Fields["name"].GetStringValue()
+		if name != targetName {
+			continue
+		}
+
+		// Zugriff auf spec.ports[].nodePort aus observed
+		spec := res.Resource.Fields["spec"].GetStructValue()
+		ports := spec.Fields["ports"].GetListValue().Values
+
+		for _, p := range ports {
+			portStruct := p.GetStructValue()
+			if npField, ok := portStruct.Fields["nodePort"]; ok {
+				nodePort := npField.GetNumberValue()
+				fmt.Printf("✅ NodePort of service %q is: %.0f\n", name, nodePort)
+			}
+		}
+	}
+
+	//Create vCluster Components Nodeport entfernt
+	err = vcluster.Vclustercomponents(req, desired, namespace, clustername, ipadresse, "tesdfsdfasd")
 	if err != nil {
 		response.Fatal(rsp, errors.Wrapf(err, "Can not Create VClusterComponents"))
 		return rsp, nil

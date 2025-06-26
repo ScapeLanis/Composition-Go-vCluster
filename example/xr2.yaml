@@ -1,0 +1,8 @@
+apiVersion: example.org/v1alpha1
+kind: XCluster
+metadata:
+  name: zweites-example-xr
+spec:
+  namespace: zweites-composition-cluster
+  clustername: zweites-test-cluster
+

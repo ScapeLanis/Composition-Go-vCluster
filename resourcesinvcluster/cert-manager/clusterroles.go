@@ -141,7 +141,7 @@ func CreateClusterRolesCertManager(clustername, version string) []runtime.Object
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: clustername + "-cert-manager-controller-issuers",
+			Name: clustername + "-cert-manager-controller-certificates",
 			Labels: map[string]string{
 				"app":                         "cert-manager",
 				"app.kubernetes.io/name":      "cert-manager",
@@ -244,7 +244,7 @@ func CreateClusterRolesCertManager(clustername, version string) []runtime.Object
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: clustername + "-cert-manager-http-01-controller-challenges",
+			Name: clustername + "-cert-manager-http01-controller-challenges",
 			Labels: map[string]string{
 				"app":                         "cert-manager",
 				"app.kubernetes.io/name":      "cert-manager",
@@ -308,7 +308,7 @@ func CreateClusterRolesCertManager(clustername, version string) []runtime.Object
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: clustername + "-cert-manager-dns-01-controller-challenges",
+			Name: clustername + "-cert-manager-dns01-controller-challenges",
 			Labels: map[string]string{
 				"app":                         "cert-manager",
 				"app.kubernetes.io/name":      "cert-manager",

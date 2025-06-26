@@ -31,14 +31,17 @@ func CreateCertManager(desired map[resource.Name]*resource.DesiredComposed, clus
 			},
 		},
 	}
-
-	resapicheck := certmanager.CreateApiCheckCertManager(namespace, clustername, version)
 	rescrds, err := certmanager.CreateCRDCertManager(namespace, clustername, version)
 	if err != nil {
 		return err
 	}
-	resrolebindings := certmanager.CreateClusterRoleBinding(namespace, clustername, version)
-	resroles := certmanager.CreateClusterRolesCertManager(clustername, version)
+
+	resapicheck := certmanager.CreateApiCheckCertManager(namespace, clustername, version)
+	resclusterrolebindings := certmanager.CreateClusterRoleBinding(namespace, clustername, version)
+	resclusterroles := certmanager.CreateClusterRolesCertManager(clustername, version)
+	resdeployments := certmanager.CreateDeploymentsCertManager(namespace, clustername, version)
+	resrolebindings := certmanager.CreateRoleBindingsCertManager(namespace, clustername, version)
+	resroles := certmanager.CreateRolesCertManager(namespace, clustername, version)
 	resserviceaccounts := certmanager.CreateServiceAccountsCertManager(namespace, clustername, version)
 	ressvc := certmanager.CreateServicesCertManager(namespace, clustername, version)
 	reswebhook := certmanager.CreateWebhooksCertManager(namespace, clustername, version)
@@ -46,6 +49,9 @@ func CreateCertManager(desired map[resource.Name]*resource.DesiredComposed, clus
 	allResources = append(allResources, namespace_certmanager)
 	allResources = append(allResources, resapicheck...)
 	allResources = append(allResources, rescrds...)
+	allResources = append(allResources, resclusterrolebindings...)
+	allResources = append(allResources, resclusterroles...)
+	allResources = append(allResources, resdeployments...)
 	allResources = append(allResources, resrolebindings...)
 	allResources = append(allResources, resroles...)
 	allResources = append(allResources, resserviceaccounts...)
@@ -54,9 +60,11 @@ func CreateCertManager(desired map[resource.Name]*resource.DesiredComposed, clus
 
 	for _, res := range allResources {
 		if metaObj, ok := res.(metav1.Object); ok {
+
+			kindlower := strings.ToLower(res.GetObjectKind().GroupVersionKind().Kind)
 			// : entfernen oder durch - ersetzen
 			cleanName := strings.ReplaceAll(metaObj.GetName(), ":", "-")
-			name := "cert-manager-" + cleanName
+			name := cleanName + "-" + kindlower
 			obj, err := vcluster.CreateObject(res, name, clustername, "vclusterconfig-"+clustername)
 			if err != nil {
 				return fmt.Errorf("failed to create %s: %w", name, err)

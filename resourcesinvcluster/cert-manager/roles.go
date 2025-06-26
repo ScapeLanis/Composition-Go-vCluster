@@ -106,7 +106,7 @@ func CreateRolesCertManager(namespace, clustername, version string) []runtime.Ob
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      clustername + "-cert-manager-webhook:dynamic-serving",
-			Namespace: "kube-system",
+			Namespace: namespace,
 
 			Labels: map[string]string{
 				"app":                         "webhook",
