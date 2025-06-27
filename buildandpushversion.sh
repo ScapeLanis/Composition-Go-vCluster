@@ -24,3 +24,10 @@ crossplane xpkg build \
 crossplane xpkg push \
     --package-files=function-amd64.xpkg,function-arm64.xpkg \
     ghcr.io/scapelanis/praxisgo:$VERSION
+
+
+sleep 1
+
+kubectl patch function vcluster \
+  --type merge \
+  --patch "{\"spec\": {\"package\": \"ghcr.io/scapelanis/praxisgo:$VERSION\"}}"

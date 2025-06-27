@@ -80,43 +80,84 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 		response.Fatal(rsp, errors.Wrapf(err, "cannot read spec.namespace field of %s", xr.Resource.GetKind()))
 		return rsp, nil
 	}
+	vcluster.ExposeNodePort(req, desired, namespace, clustername, ipadresse)
 
-	targetName := "vcluster-nodeport-" + clustername
-	for _, res := range req.Observed.Resources {
-		if res.Resource == nil {
-			continue
-		}
+	resource := req.Observed.Resources["exposevclusternodeport-"+clustername]
+	if resource == nil || resource.Resource == nil {
+		fmt.Println("resource or resource.Resource is nil")
+	} else {
+		statusField, ok := resource.Resource.Fields["status"]
+		if !ok || statusField == nil {
+			fmt.Println("status field not found or nil")
+		} else {
+			status := statusField.GetStructValue()
+			if status == nil {
+				fmt.Println("status struct is nil")
+			} else {
+				atProviderField, ok := status.Fields["atProvider"]
+				if !ok || atProviderField == nil {
+					fmt.Println("atProvider field not found or nil")
+				} else {
+					atProvider := atProviderField.GetStructValue()
+					if atProvider == nil {
+						fmt.Println("atProvider struct is nil")
+					} else {
+						manifestField, ok := atProvider.Fields["manifest"]
+						if !ok || manifestField == nil {
+							fmt.Println("manifest field not found or nil")
+						} else {
+							manifest := manifestField.GetStructValue()
+							if manifest == nil {
+								fmt.Println("manifest struct is nil")
+							} else {
+								manifestSpecField, ok := manifest.Fields["spec"]
+								if !ok || manifestSpecField == nil {
+									fmt.Println("manifest.spec field not found or nil")
+								} else {
+									manifestSpec := manifestSpecField.GetStructValue()
+									if manifestSpec == nil {
+										fmt.Println("manifestSpec struct is nil")
+									} else {
+										portsField, ok := manifestSpec.Fields["ports"]
+										if !ok || portsField == nil || portsField.GetListValue() == nil {
+											fmt.Println("ports field not found or nil")
+										} else {
+											ports := portsField.GetListValue().Values
+											for _, portVal := range ports {
+												if portVal == nil {
+													continue
+												}
+												port := portVal.GetStructValue()
+												if nameField, ok := port.Fields["name"]; !ok || nameField.GetStringValue() != "https" {
+													continue
+												}
+												if nodePortField, ok := port.Fields["nodePort"]; ok && nodePortField != nil {
+													nodePortStr := fmt.Sprintf("%.0f", nodePortField.GetNumberValue())
+													fmt.Println("nodePort:", nodePortStr)
 
-		kind := res.Resource.Fields["kind"].GetStringValue()
-		if kind != "Service" {
-			continue
-		}
-
-		metadata := res.Resource.Fields["metadata"].GetStructValue()
-		name := metadata.Fields["name"].GetStringValue()
-		if name != targetName {
-			continue
-		}
-
-		// Zugriff auf spec.ports[].nodePort aus observed
-		spec := res.Resource.Fields["spec"].GetStructValue()
-		ports := spec.Fields["ports"].GetListValue().Values
-
-		for _, p := range ports {
-			portStruct := p.GetStructValue()
-			if npField, ok := portStruct.Fields["nodePort"]; ok {
-				nodePort := npField.GetNumberValue()
-				fmt.Printf("✅ NodePort of service %q is: %.0f\n", name, nodePort)
+													err := vcluster.Vclustercomponents(req, desired, namespace, clustername, ipadresse, nodePortStr)
+													if err != nil {
+														response.ConditionFalse(rsp, "FunctionSuccess", "InternalError").
+															WithMessage("VClusterComponents failed").
+															TargetCompositeAndClaim()
+														response.Fatal(rsp, errors.Wrapf(err, "Can not create VClusterComponents"))
+													}
+													break // Wenn ein gültiger nodePort gefunden wurde, abbrechen
+												} else {
+													fmt.Println("nodePort not found in port named 'https'")
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	}
 
-	//Create vCluster Components Nodeport entfernt
-	err = vcluster.Vclustercomponents(req, desired, namespace, clustername, ipadresse, "tesdfsdfasd")
-	if err != nil {
-		response.Fatal(rsp, errors.Wrapf(err, "Can not Create VClusterComponents"))
-		return rsp, nil
-	}
 	//Create Usages, Order to Delete in vCluster then vCluster Components
 	err = vcluster.CreateUsages(desired, clustername)
 	if err != nil {
@@ -130,6 +171,7 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 			response.Fatal(rsp, errors.Wrapf(err, "Can not Create Testpod in vCluster"))
 			return rsp, nil
 		}*/
+
 	err = invcluster.CreateCertManager(desired, clustername)
 	if err != nil {
 		response.Fatal(rsp, errors.Wrapf(err, "Can not Create Cert-Manager"))

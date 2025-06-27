@@ -556,5 +556,50 @@ func CreateUsages(desired map[resource.Name]*resource.DesiredComposed, clusterna
 		Ready:    resource.ReadyTrue,
 	}
 
+	usage_statefulset_vclustersecret := &v1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "usage-statefulset" + clustername,
+		},
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
+				APIVersion: "kubernetes.crossplane.io/v1alpha2",
+				Kind:       "Object",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "statefulset-" + clustername,
+				},
+			},
+			By: &v1beta1.Resource{
+				Kind:       "Secret",
+				APIVersion: "v1",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vc-" + clustername,
+				},
+				/*
+					ResourceSelector: &v1beta1.ResourceSelector{
+						MatchLabels: map[string]string{
+							"app":           "vcluster",
+							"vcluster-name": clustername,
+						},
+						MatchControllerRef: structs.BoolPtr(false),
+					},*/
+			},
+			Reason:         structs.StrPtr("Statefulset" + clustername + "noch vorhanden erst dann Secret löschen"),
+			ReplayDeletion: structs.BoolPtr(true),
+		},
+	}
+
+	a, err = composed.From(usage_statefulset_vclustersecret)
+	if err != nil {
+		return fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("usage-statefulset"+clustername)] = &resource.DesiredComposed{
+		Resource: a,
+		Ready:    resource.ReadyTrue,
+	}
+
 	return nil
 }

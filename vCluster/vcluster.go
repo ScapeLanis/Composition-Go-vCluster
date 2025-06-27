@@ -2,12 +2,12 @@ package vcluster
 
 import (
 	"fmt"
-	"strconv"
 
 	objectv1alpha2 "github.com/crossplane-contrib/provider-kubernetes/apis/object/v1alpha2"
 	providerv1alpha1 "github.com/crossplane-contrib/provider-kubernetes/apis/v1alpha1"
 	kconfig "github.com/crossplane-contrib/provider-kubernetes/pkg/kube/config"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	v1beta1 "github.com/crossplane/crossplane/apis/apiextensions/v1beta1"
 	fnv1 "github.com/crossplane/function-sdk-go/proto/v1"
 	"github.com/crossplane/function-sdk-go/resource"
 	"github.com/crossplane/function-sdk-go/resource/composed"
@@ -19,8 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/yaml"
-
-	"strings"
 
 	"github.com/ScapeLanis/GoVCluster/structs"
 	"k8s.io/client-go/tools/clientcmd"
@@ -72,17 +70,102 @@ func CreateObject(obj runtime.Object, name, clustername, providername string) (*
 	}, nil
 
 }
+func ExposeNodePort(req *fnv1.RunFunctionRequest, desired map[resource.Name]*resource.DesiredComposed, namespace, clustername, ipadresse string) error {
 
-func Vclustercomponents(req *fnv1.RunFunctionRequest, desired map[resource.Name]*resource.DesiredComposed, namespace, clustername, ipadresse, nodeport string) error {
-	cleannodeport := strings.TrimPrefix(nodeport, ":")
-	portInt64, err := strconv.ParseInt(cleannodeport, 10, 32)
+	exposevclusternodeport := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vcluster-nodeport-" + clustername,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"app":     "vcluster",
+				"release": clustername,
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: map[string]string{
+				"app":     "vcluster",
+				"release": clustername,
+			},
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "https",
+					Port:       443,
+					TargetPort: intstr.FromInt(8443),
+					Protocol:   corev1.ProtocolTCP,
+				},
+			},
+			Type: corev1.ServiceTypeNodePort,
+		},
+	}
+	obj, err := CreateObject(exposevclusternodeport, "exposevclusternodeport-", clustername, "kubernetes-provider")
 	if err != nil {
-		fmt.Println("Fehler beim Parsen:", err)
 		return err
 	}
+	desired[resource.Name("exposevclusternodeport-"+clustername)] = obj
 
-	nodeportint32 := int32(portInt64)
+	usage_svc_expose_nodeport := &v1beta1.Usage{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Usage",
+			APIVersion: "apiextensions.crossplane.io/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "usage-service-nodeport-" + clustername,
+		},
+		Spec: v1beta1.UsageSpec{
+			Of: v1beta1.Resource{
+				APIVersion: "kubernetes.crossplane.io/v1alpha2",
+				Kind:       "Object",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "exposevclusternodeport-" + clustername,
+				},
+			},
+			By: &v1beta1.Resource{
+				Kind:       "ProviderConfig",
+				APIVersion: "kubernetes.crossplane.io/v1alpha1",
+				ResourceRef: &v1beta1.ResourceRef{
+					Name: "vclusterconfig-" + clustername,
+				},
+				ResourceSelector: &v1beta1.ResourceSelector{
+					MatchLabels: map[string]string{
+						"providerforvcluster": "true",
+						"app":                 "vcluster-" + clustername,
+						"release":             clustername,
+					},
+					MatchControllerRef: structs.BoolPtr(false),
+				},
+			},
+			Reason:         structs.StrPtr("Ressource im Clutser noch vorhanden"),
+			ReplayDeletion: structs.BoolPtr(true),
+		},
+	}
 
+	c, err := composed.From(usage_svc_expose_nodeport)
+	if err != nil {
+		return fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("usage-service-"+clustername)] = &resource.DesiredComposed{
+		Resource: c,
+		Ready:    resource.ReadyTrue,
+	}
+
+	//_, err = CreateUsage(exposevclusternodeport, providerconfig, "Ressource in vCluster")
+	return nil
+}
+func Vclustercomponents(req *fnv1.RunFunctionRequest, desired map[resource.Name]*resource.DesiredComposed, namespace, clustername, ipadresse, nodeport string) error {
+	/*
+		cleannodeport := strings.TrimPrefix(nodeport, ":")
+		portInt64, err := strconv.ParseInt(cleannodeport, 10, 32)
+		if err != nil {
+			fmt.Println("Fehler beim Parsen:", err)
+			return err
+		}
+
+		nodeportint32 := int32(portInt64)
+	*/
 	serviceaccount_vc := &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ServiceAccount",
@@ -1043,44 +1126,6 @@ func Vclustercomponents(req *fnv1.RunFunctionRequest, desired map[resource.Name]
 		Ready:    resource.ReadyTrue,
 	}
 
-	exposevclusternodeport := &corev1.Service{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Service",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "vcluster-nodeport-" + clustername,
-			Namespace: namespace,
-			Labels: map[string]string{
-				"app":     "vcluster",
-				"release": clustername,
-			},
-		},
-		Spec: corev1.ServiceSpec{
-			Selector: map[string]string{
-				"app":     "vcluster",
-				"release": clustername,
-			},
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "https",
-					Port:       443,
-					TargetPort: intstr.FromInt(8443),
-					Protocol:   corev1.ProtocolTCP,
-					NodePort:   nodeportint32,
-				},
-			},
-			Type: corev1.ServiceTypeNodePort,
-		},
-	}
-	obj, err = CreateObject(exposevclusternodeport, "exposevclusternodeport-", clustername, "kubernetes-provider")
-	if err != nil {
-		return err
-	}
-	desired[resource.Name("exposevclusternodeport-"+clustername)] = obj
-
-	_, err = CreateUsage(exposevclusternodeport, providerconfig, "weil halt")
-
 	resourcestateful := req.Observed.Resources["statefulset-"+clustername]
 	if resourcestateful == nil {
 		//err = fmt.Errorf("observed resource statefulset-%s is nil", clustername)
@@ -1100,7 +1145,7 @@ func Vclustercomponents(req *fnv1.RunFunctionRequest, desired map[resource.Name]
 			if !exists || cluster == nil {
 				return err
 			}
-			kubeconfig.Clusters["kubernetes"].Server = ipadresse + nodeport
+			kubeconfig.Clusters["kubernetes"].Server = ipadresse + ":" + nodeport
 			configbytechanged, err := clientcmd.Write(*kubeconfig)
 			if err != nil {
 				return err
