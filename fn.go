@@ -20,6 +20,12 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 )
 
+//TODO
+//Usages mit CreateUsage vlt auch generisch?
+//IPAdresse und Nodeport überprüfen von exposevcluster service      vlt ipadresse abfragen?? würde das gehen?
+// Abfrage NodePort eigene Funktion und ganzen pfad in Funktion abfragen, Generisch erstellen
+//TESTS?????
+
 // Function implements the FunctionRunnerServiceServer.
 type Function struct {
 	fnv1.UnimplementedFunctionRunnerServiceServer
@@ -83,6 +89,8 @@ func (f *Function) RunFunction(ctx context.Context, req *fnv1.RunFunctionRequest
 	vcluster.ExposeNodePort(req, desired, namespace, clustername, ipadresse)
 
 	resource := req.Observed.Resources["exposevclusternodeport-"+clustername]
+
+	//Extra Funktion Return kein else, ganzer pfad wenn nil error, Generics verwenden
 	if resource == nil || resource.Resource == nil {
 		fmt.Println("resource or resource.Resource is nil")
 	} else {

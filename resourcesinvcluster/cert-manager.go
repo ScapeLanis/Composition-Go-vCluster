@@ -37,7 +37,7 @@ func CreateCertManager(desired map[resource.Name]*resource.DesiredComposed, clus
 	}
 
 	resapicheck := certmanager.CreateApiCheckCertManager(namespace, clustername, version)
-	resclusterrolebindings := certmanager.CreateClusterRoleBinding(namespace, clustername, version)
+	resclusterrolebindings := certmanager.CreateClusterRoleBindings(namespace, clustername, version)
 	resclusterroles := certmanager.CreateClusterRolesCertManager(clustername, version)
 	resdeployments := certmanager.CreateDeploymentsCertManager(namespace, clustername, version)
 	resrolebindings := certmanager.CreateRoleBindingsCertManager(namespace, clustername, version)
@@ -62,7 +62,7 @@ func CreateCertManager(desired map[resource.Name]*resource.DesiredComposed, clus
 		if metaObj, ok := res.(metav1.Object); ok {
 
 			kindlower := strings.ToLower(res.GetObjectKind().GroupVersionKind().Kind)
-			// : entfernen oder durch - ersetzen
+			// change : to -
 			cleanName := strings.ReplaceAll(metaObj.GetName(), ":", "-")
 			name := cleanName + "-" + kindlower
 			obj, err := vcluster.CreateObject(res, name, clustername, "vclusterconfig-"+clustername)

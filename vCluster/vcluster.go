@@ -24,6 +24,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+const ResourceInVCluster string = "Resource in vCluster Exists"
+
 func init() {
 
 	composed.Scheme.AddKnownTypes(providerv1alpha1.SchemeGroupVersion, &providerv1alpha1.ProviderConfig{})
@@ -107,6 +109,12 @@ func ExposeNodePort(req *fnv1.RunFunctionRequest, desired map[resource.Name]*res
 	}
 	desired[resource.Name("exposevclusternodeport-"+clustername)] = obj
 
+	uobj, err := CreateObjectUsage(obj, exposevclusternodeport, ResourceInVCluster)
+	if err != nil {
+		return err
+	}
+	desired[resource.Name("usage-exposevclusternodeport-"+clustername)] = uobj
+
 	usage_svc_expose_nodeport := &v1beta1.Usage{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Usage",
@@ -138,7 +146,7 @@ func ExposeNodePort(req *fnv1.RunFunctionRequest, desired map[resource.Name]*res
 					MatchControllerRef: structs.BoolPtr(false),
 				},
 			},
-			Reason:         structs.StrPtr("Ressource im Clutser noch vorhanden"),
+			Reason:         structs.StrPtr(ResourceInVCluster),
 			ReplayDeletion: structs.BoolPtr(true),
 		},
 	}
@@ -152,20 +160,50 @@ func ExposeNodePort(req *fnv1.RunFunctionRequest, desired map[resource.Name]*res
 		Ready:    resource.ReadyTrue,
 	}
 
-	//_, err = CreateUsage(exposevclusternodeport, providerconfig, "Ressource in vCluster")
 	return nil
 }
 func Vclustercomponents(req *fnv1.RunFunctionRequest, desired map[resource.Name]*resource.DesiredComposed, namespace, clustername, ipadresse, nodeport string) error {
-	/*
-		cleannodeport := strings.TrimPrefix(nodeport, ":")
-		portInt64, err := strconv.ParseInt(cleannodeport, 10, 32)
-		if err != nil {
-			fmt.Println("Fehler beim Parsen:", err)
-			return err
-		}
 
-		nodeportint32 := int32(portInt64)
-	*/
+	//ProviderConfig for vCluster
+	providerconfig := &providerv1alpha1.ProviderConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ProviderConfig",
+			APIVersion: "kubernetes.crossplane.io/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "vclusterconfig-" + clustername,
+			Labels: map[string]string{
+				"providerforvcluster": "true",
+				"app":                 "vcluster-" + clustername,
+				"release":             clustername,
+			},
+		},
+		Spec: kconfig.ProviderConfigSpec{
+			Credentials: kconfig.ProviderCredentials{
+				Source: "Secret",
+				CommonCredentialSelectors: xpv1.CommonCredentialSelectors{
+					SecretRef: &xpv1.SecretKeySelector{
+
+						Key: "config.yaml",
+						SecretReference: xpv1.SecretReference{
+							Namespace: namespace,
+							Name:      "vc-kubeconfig-" + clustername,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	u, err := composed.From(providerconfig)
+	if err != nil {
+		return fmt.Errorf("failed to convert object to composed: %w", err)
+	}
+	desired[resource.Name("providerconfig-"+clustername)] = &resource.DesiredComposed{
+		Resource: u,
+		Ready:    resource.ReadyTrue,
+	}
+
 	serviceaccount_vc := &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ServiceAccount",
@@ -184,7 +222,13 @@ func Vclustercomponents(req *fnv1.RunFunctionRequest, desired map[resource.Name]
 	if err != nil {
 		return err
 	}
+	//Usage verändert die darüber auch noch ändern und alle anderen erzeugen
 	desired[resource.Name("serviceaccount_vc-"+clustername)] = obj
+	uobj, err := CreateObjectUsage(obj, serviceaccount_vc, ResourceInVCluster)
+	if err != nil {
+		return err
+	}
+	desired[resource.Name("usage-"+serviceaccount_vc.Kind+"-"+serviceaccount_vc.Name)] = uobj
 
 	serviceaccount_workload := &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
@@ -205,6 +249,11 @@ func Vclustercomponents(req *fnv1.RunFunctionRequest, desired map[resource.Name]
 		return err
 	}
 	desired[resource.Name("serviceaccount-workload-"+clustername)] = obj
+	uobj, err = CreateObjectUsage(obj, serviceaccount_workload, ResourceInVCluster)
+	if err != nil {
+		return err
+	}
+	desired[resource.Name("usage-serviceaccount-workload-"+clustername)] = uobj
 
 	vclusterconfig, err := structs.NewDefaultConfig()
 	if err != nil {
@@ -1077,52 +1126,13 @@ func Vclustercomponents(req *fnv1.RunFunctionRequest, desired map[resource.Name]
 			},
 		},
 	}
+
 	so, err := composed.From(statefulsetobj)
 	if err != nil {
 		return err
 	}
 	desired[resource.Name("statefulset-"+clustername)] = &resource.DesiredComposed{
 		Resource: so,
-		Ready:    resource.ReadyTrue,
-	}
-
-	//ProviderConfig for vCluster
-	providerconfig := &providerv1alpha1.ProviderConfig{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ProviderConfig",
-			APIVersion: "kubernetes.crossplane.io/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "vclusterconfig-" + clustername,
-			Labels: map[string]string{
-				"providerforvcluster": "true",
-				"app":                 "vcluster-" + clustername,
-				"release":             clustername,
-			},
-		},
-		Spec: kconfig.ProviderConfigSpec{
-			Credentials: kconfig.ProviderCredentials{
-				Source: "Secret",
-				CommonCredentialSelectors: xpv1.CommonCredentialSelectors{
-					SecretRef: &xpv1.SecretKeySelector{
-
-						Key: "config.yaml",
-						SecretReference: xpv1.SecretReference{
-							Namespace: namespace,
-							Name:      "vc-kubeconfig-" + clustername,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	u, err := composed.From(providerconfig)
-	if err != nil {
-		return fmt.Errorf("failed to convert object to composed: %w", err)
-	}
-	desired[resource.Name("providerconfig-"+clustername)] = &resource.DesiredComposed{
-		Resource: u,
 		Ready:    resource.ReadyTrue,
 	}
 

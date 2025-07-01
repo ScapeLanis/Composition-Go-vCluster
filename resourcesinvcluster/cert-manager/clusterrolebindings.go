@@ -6,7 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func CreateClusterRoleBinding(namespace, clustername, version string) []runtime.Object {
+func CreateClusterRoleBindings(namespace, clustername, version string) []runtime.Object {
 
 	cert_manager_cainjector := &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
